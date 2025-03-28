@@ -1,0 +1,772 @@
+.program-details-fullscreen {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.program-details-content {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.close-button-fullscreen {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.program-header h1 {
+  margin: 0;
+  color: #333;
+}
+
+.program-body {
+  display: flex;
+  margin-top: 20px;
+  flex-wrap: wrap; /* Allows the elements to wrap if necessary */
+  gap: 20px; /* Adds space between containers */
+}
+
+.thumbnail-container2 {
+  flex: 1;
+  max-width: 500px; /* Set a fixed max width for consistency */
+  min-width: 500px;
+}
+
+.program-thumbnail2 {
+  width: 100%;
+  height: 400px; /* Fixed height */
+  border-radius: 8px;
+  object-fit: cover; /* Ensures image covers the container area without stretching */
+}
+
+.details-section {
+  flex: 2;
+  min-width: 300px; /* Minimum width for details container */
+  max-width: 600px; /* Maximum width to prevent excessive stretching */
+  overflow-wrap: break-word; /* Ensures long words wrap */
+  word-wrap: break-word;
+}
+
+.details-section p {
+  margin: 0.5em 0;
+  max-width: 100%; /* Ensures the text stays within the container */
+}
+
+.details-section ul {
+  padding-left: 20px;
+}
+
+.details-section ul li {
+  margin-bottom: 0.25em;
+}
+
+.details-title {
+  margin-bottom: 10px;
+  font-size: 24px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.program-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: flex-start;
+  margin-top: 20px;
+}
+
+button {
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.apply-button {
+  background-color: #4caf50; /* Green */
+  color: white;
+}
+
+.apply-button:hover {
+  background-color: #45a049; /* Slightly darker green */
+  transform: translateY(-2px); /* Subtle lift effect */
+}
+
+.apply-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.4);
+}
+
+.upload-button {
+  background-color: #007bff; /* Blue */
+  color: white;
+}
+
+.upload-button:hover {
+  background-color: #0056b3; /* Darker blue */
+  transform: translateY(-2px); /* Lift effect */
+}
+
+.upload-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.4);
+}
+
+.scan-qr-button {
+  background-color: #ffc107; /* Yellow */
+  color: white;
+}
+
+.inv-button {
+  background-color: #340ac1; /* Yellow */
+  color: white;
+}
+
+.share-button {
+  background-color: #28c57c; /* Yellow */
+  color: white;
+}
+
+.scan-qr-button:hover {
+  background-color: #e0a800; /* Darker yellow */
+  transform: translateY(-2px); /* Lift effect */
+}
+
+.scan-qr-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.4);
+}
+
+.show-qr-button {
+  background-color: #17a2b8; /* Cyan */
+  color: white;
+}
+
+.delete-button{
+  background-color: #cb1111; /* Cyan */
+  color: white;
+}
+
+.delete-button:hover{
+  background-color: #b10707; /* Darker cyan */
+  transform: translateY(-2px); /* Lift effect */
+}
+
+.show-qr-button:hover {
+  background-color: #138496; /* Darker cyan */
+  transform: translateY(-2px); /* Lift effect */
+}
+
+.show-qr-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(23, 162, 184, 0.4);
+}
+
+/* Disabled button state */
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.approved-applicants-section {
+  margin-top: 30px;
+}
+
+.approved-applicants-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.approved-applicants-table th,
+.approved-applicants-table td {
+  border: 1px solid #ccc;
+  padding: 10px;
+  text-align: left;
+}
+
+.approved-applicants-table th {
+  background: #f2f2f2;
+}
+
+.upload-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* Ensure it overlays all other content */
+}
+
+.details-section li {
+  font-size: 12px;
+}
+
+.upload-modal-content {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  width: 400px;
+  max-width: 80%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.close-modal-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  cursor: pointer;
+}
+
+.upload-button {
+  background-color: #007bff; /* default color */
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.upload-button.disabled {
+  background-color: gray;
+  cursor: not-allowed;
+}
+
+.program-details-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.tab-container {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+  border-bottom: 2px solid #e0e0e0;
+  width: 100%;
+}
+
+.tab {
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  transition: color 0.3s, background-color 0.3s;
+  text-align: center;
+  position: relative;
+  flex: 1;
+}
+
+.tab:hover {
+  color: #007bff;
+}
+
+.tab.active {
+  color: #007bff;
+  font-weight: 600;
+}
+
+.tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: #007bff;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.tab-content {
+  width: 100%;
+  padding: 20px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.tab.disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+/* attendance table */
+
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+  background-color: #fff;
+}
+
+.attendance-table th,
+.attendance-table td {
+  padding: 10px;
+  text-align: center;
+  border: 1px solid #ddd;
+}
+
+.attendance-table th {
+  background-color: #f4f4f4;
+  font-weight: 600;
+}
+
+.attendance-table td.present {
+  background-color: #4caf50;
+  color: #fff;
+}
+
+.attendance-table td.absent {
+  background-color: #f44336;
+  color: #fff;
+}
+
+.attendance-table td.no-data {
+  background-color: #b0bec5;
+  color: #fff;
+}
+
+.qr-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.qr-code-container {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.qr-code-container h3 {
+  margin-bottom: 20px;
+}
+
+.qr-code-container button {
+  margin-top: 20px;
+  padding: 8px 16px;
+}
+
+/* QR options */
+
+.overlay-qr-options {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7); /* Semi-transparent background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999; /* Ensure it is above all other content */
+}
+
+.qr-code-options-modal {
+  background: white; /* Modal background */
+  border-radius: 10px; /* Rounded corners */
+  padding: 20px;
+  width: 90%;
+  max-width: 400px; /* Maximum width for modal */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); /* Shadow for depth */
+  text-align: center; /* Center text */
+}
+
+.qr-code-options-modal h3 {
+  margin-bottom: 20px; /* Space below title */
+  font-size: 1.5rem; /* Modern font size */
+  color: #333; /* Title color */
+}
+
+.qr-code-options-modal button {
+  background-color: #007bff; /* Primary button color */
+  color: white; /* Button text color */
+  border: none; /* Remove border */
+  border-radius: 5px; /* Rounded button */
+  padding: 10px 15px; /* Button padding */
+  margin: 10px; /* Space between buttons */
+  cursor: pointer; /* Pointer cursor on hover */
+  transition: background-color 0.3s; /* Smooth background color transition */
+}
+
+.qr-code-options-modal button:hover {
+  background-color: #0056b3; /* Darker shade on hover */
+}
+
+.qr-code-options-modal button:last-child {
+  background-color: #dc3545; /* Cancel button color */
+}
+
+.qr-code-options-modal button:last-child:hover {
+  background-color: #c82333; /* Darker shade on hover */
+}
+
+.qr-scanner-modal {
+  position: fixed; /* Make modal fixed */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex; /* Use flexbox to center content */
+  align-items: center; /* Center vertically */
+  justify-content: center; /* Center horizontally */
+  background: rgba(0, 0, 0, 0.7); /* Optional: Semi-transparent background */
+  z-index: 1000; /* Ensure modal is on top */
+}
+
+video {
+  width: 90%; /* Adjust width as needed */
+  max-width: 400px; /* Set a max width */
+  border-radius: 8px; /* Optional: Rounded corners */
+}
+
+@media (max-width: 768px) {
+  /* For mobile devices */
+
+  .program-body {
+    padding: 10px;
+  }
+
+  p {
+    font-size: 8px;
+  }
+
+  .thumbnail-container2 {
+    max-width: 300px; /* Set a fixed max width for consistency */
+    min-width: 250px;
+  }
+
+  .program-header {
+    width: 100%; /* Ensure it takes up the full width */
+    overflow-wrap: break-word; /* Break words if needed to avoid overflow */
+    word-wrap: break-word; /* For older browsers */
+  }
+
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on mobile */
+    width: 100%;
+  }
+
+  .details-title {
+    font-size: 1.5rem; /* Adjust font size for readability */
+    text-align: center;
+    margin: 0; /* Remove any default margin */
+    line-height: 1.2; /* Adjust line height to ensure proper spacing */
+    word-break: break-word; /* Ensures that long words break and stay within the container */
+    hyphens: auto; /* Optional: allows words to be hyphenated at line breaks */
+    overflow: hidden;
+  }
+
+  .program-thumbnail2 {
+    width: 100%;
+    height: 200px; /* Fixed height */
+    border-radius: 8px;
+    object-fit: cover; /* Ensures image covers the container area without stretching */
+  }
+
+  /* Stack buttons vertically */
+  .program-actions {
+    flex-direction: column;
+  }
+
+  /* Thumbnails and image adjustments */
+  .program-thumbnail2 {
+    max-width: 100%;
+  }
+
+  .details-section ul {
+    margin-left: 10px;
+  }
+
+  /* Tab container to align tabs in a row */
+  .tab-container {
+    display: flex; /* Flexbox layout */
+    flex-wrap: nowrap; /* Ensure tabs stay in a single row */
+    gap: 10px; /* Space between tabs */
+    padding: 10px 0; /* Padding to create some spacing around tabs */
+    justify-content: flex-start; /* Align tabs to the left */
+  }
+
+  /* Styling for each tab */
+  .tab {
+    padding: 10px 20px; /* Add some padding to the tabs */
+    cursor: pointer;
+    border-radius: 5px; /* Rounded corners */
+    text-align: center;
+    font-weight: bold;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Active tab styling */
+  .tab.active {
+    color: #007bff;
+  }
+
+  /* Disabled tab styling */
+  .tab.disabled {
+    color: #ccc; /* Light gray background for disabled tabs */
+    cursor: not-allowed; /* Change cursor to indicate disabled state */
+  }
+
+  .applicants-table,
+  .attendance-table {
+    font-size: 0.9rem;
+    width: 100%;
+    border-collapse: collapse; /* Makes sure there is no extra space between borders */
+  }
+  .applicants-table th,
+  .attendance-table th,
+  .applicants-table td,
+  .attendance-table td {
+    padding: 8px;
+    word-wrap: break-word; /* Ensure long words break properly */
+  }
+
+  .table-container {
+    overflow: scroll;
+    -webkit-overflow-scrolling: touch; /* For smooth scrolling on mobile */
+    width: 100%;
+  }
+  .applicants-table th,
+  .attendance-table th {
+    text-align: left;
+    white-space: nowrap; /* Prevent headers from wrapping */
+  }
+  .program-actions {
+    flex-direction: row; /* Arrange buttons in a row on mobile */
+    justify-content: space-between; /* Distribute buttons evenly across the container */
+  }
+
+  .program-actions button {
+    flex: 1; /* Allow buttons to grow and fill available space */
+    margin-bottom: 10px; /* Add spacing between buttons when wrapping */
+  }
+}
+
+@media (max-width: 480px) {
+  /* Further adjustments for smaller screens */
+  .program-header h1.details-title {
+    font-size: 1.1rem;
+  }
+
+  button {
+    font-size: 12px;
+  }
+
+  /* Adjust spacing for small screens */
+  .program-actions button {
+    padding: 10px;
+  }
+}
+
+/* Style the modal content */
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+/* Modal container */
+.modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  width: 600px;
+  height: 70%;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  overflow:scroll;
+}
+
+/* Form container */
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 15px; /* Add space between fields */
+}
+
+/* Align form-group containers */
+.form-group-1 {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Label styling */
+.form-group label {
+  font-size: 14px;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #333;
+}
+
+/* Input, select, and textarea fields */
+.form-group-1 input,
+.form-group-1 select,
+.form-group-1 textarea {
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+/* Input types */
+.form-group-1 input[type="number"] {
+  width: 100%;
+}
+
+/* Styling for textarea */
+.form-group-1 textarea {
+  resize: vertical;
+  height: 100px;
+}
+
+/* Modal actions (buttons) */
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-top: 20px;
+}
+
+#save-button {
+  background-color: #4CAF50;
+  color: white;
+}
+
+#cancel-button {
+  background-color: #f44336;
+  color: white;
+}
+
+/* Button hover effect */
+#save-button:hover,
+#cancel-button:hover {
+  opacity: 0.8;
+}
+
+/* Overlay background */
+.delete-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* Ensure it's above other content */
+}
+
+/* Modal content box */
+.delete-modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 500px; /* Set a maximum width for large content */
+  width: auto; /* Automatically adjust width based on content */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-width: 300px; /* Minimum width if content is small */
+  text-align: center;
+}
+
+/* Modal title */
+.delete-modal-content h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+/* Input field styles */
+.delete-modal-content input[type="password"] {
+  padding: 8px;
+  margin-top: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+/* Button styles */
+.delete-modal-content button {
+  padding: 10px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.delete-modal-content button:hover {
+  background-color: #0056b3;
+}
+
+.delete-modal-content button:first-child {
+  background-color: #28a745; /* Green for verify */
+}
+
+.delete-modal-content button:first-child:hover {
+  background-color: #218838;
+}
+
+.delete-modal-content button:last-child {
+  background-color: #dc3545; /* Red for cancel */
+}
+
+.delete-modal-content button:last-child:hover {
+  background-color: #c82333;
+}

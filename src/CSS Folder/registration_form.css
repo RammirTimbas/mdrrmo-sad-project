@@ -1,0 +1,318 @@
+/* registration_form.css */
+
+
+.registration-form-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .registration-form {
+    background-color: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    width: 50%;
+    max-height: 70%;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  
+  
+  .close-button {
+    background: none;
+    border: none;
+    font-size: 20px;
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    cursor: pointer;
+    color: #007bff; /* Button color */
+    transition: color 0.3s;
+  }
+  
+  .close-button:hover {
+    color: red;
+  }
+  
+  h2 {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  
+  form {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  fieldset {
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    padding: 10px;
+  }
+  
+  legend {
+    font-weight: bold;
+  }
+  
+  .form-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+  
+  label {
+    flex: 1;
+    margin-right: 10px;
+  }
+  
+  input[type="text"],
+  input[type="file"],
+  input[type="tel"],
+  input[type="email"],
+  input[type="number"] {
+    flex: 2;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  button:disabled {
+    background-color: #ddd;
+    cursor: not-allowed;
+  }
+
+  .registration-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    flex-grow: 5; /* Allows the button to grow and take available space */
+    margin: 0 5px; /* Adds spacing between buttons */
+    min-width: 100px; /* Optional: Set a minimum width for the button */
+  }
+  
+
+  .form-navigation {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .registration-button:hover {
+    background-color: #0056b3; /* Darker shade on hover */
+  }
+
+
+
+
+  /* Hey */
+
+/* General form input styling for input and select */
+.registration-form input,
+.registration-form select {
+  width: calc(100% - 10px); /* Adjust width for padding/margin */
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  font-size: 16px;
+}
+
+/* Container styling */
+.form-container {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.form-group {
+  display: flex;
+  width: 67%;
+}
+
+/* Align dropdown to the right */
+.form-container .dropdown-group {
+  display: flex;
+  justify-content: flex-end; /* Align to the right */
+}
+
+/* Dropdown specific styling */
+.registration-form select {
+  width: 100%; /* Ensures it takes the same width as the input */
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-size: 16px;
+}
+
+.notice {
+    background-color: #f9f9c5; /* Light yellow background */
+    color: #333; /* Dark text color for contrast */
+    padding: 10px;
+    border: 1px solid #e3e86a; /* Slightly darker border */
+    border-radius: 5px;
+    margin: 10px 0; /* Space around the notice */
+    font-size: 14px; /* Slightly larger font */
+    text-align: center; /* Center the text */
+  }
+  
+
+  
+@media (max-width: 768px) {
+  .registration-form {
+    width: 90%; /* Make the form width flexible on mobile */
+    padding: 15px; /* Reduce padding for compact layout */
+  }
+
+  .registration-form h2 {
+    font-size: 1.25rem; /* Slightly smaller title */
+  }
+
+  .registration-form label {
+    font-size: 0.9rem; /* Smaller label font size */
+  }
+
+  .registration-form input,
+  .registration-form select,
+  .registration-form textarea {
+    padding: 8px; /* Reduce padding inside inputs */
+    font-size: 0.9rem; /* Smaller input font */
+  }
+
+  .registration-form button {
+    padding: 8px; /* Smaller button padding */
+    font-size: 0.9rem; /* Smaller button text */
+  }
+}
+
+/* Certification*/
+/* Certification - Checkbox and Label */
+/* Certification - Checkbox and Label */
+.cb-holder {
+  display: flex; /* Enables flexbox layout */
+  justify-content: center; /* Horizontally centers the checkbox and label */
+  align-items: center; /* Vertically aligns the checkbox and label */
+  width: 100%; /* Ensures it uses full width of the parent container */
+  margin-top: 15px; /* Adds spacing for visual separation */
+}
+
+.cb-holder input[type="checkbox"] {
+  width: 15px; /* Set a specific width */
+  height: 15px; /* Set a specific height */
+  margin-right: 10px; /* Space between checkbox and label */
+  /* Removed margin left/right to avoid shifting */
+}
+
+.cb-holder label {
+  display: flex; /* Change to flex to center align text */
+  align-items: center; /* Vertically align text with checkbox */
+  white-space: nowrap; /* Prevent wrapping */
+  justify-content: center; /* Center align text inside label */
+}
+
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7); /* Dark semi-transparent background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999; /* Ensure overlay is on top */
+}
+
+.overlay-content {
+  background-color: white; /* White background for content */
+  border-radius: 8px; /* Rounded corners */
+  padding: 20px; /* Padding around the content */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+  max-width: 400px; /* Limit the width */
+  text-align: center; /* Center text alignment */
+}
+
+
+h3 {
+  color: #333; /* Dark color for subheading */
+  margin: 20px 0 10px; /* Space above and below */
+}
+
+p {
+  color: #555; /* Gray color for text */
+  margin: 10px 0; /* Space above and below */
+}
+
+.download-button {
+  color: #007bff; /* Green background */
+  color: white; /* White text */
+  border: none; /* No border */
+  border-radius: 4px; /* Rounded corners */
+  padding: 10px 15px; /* Padding inside button */
+  cursor: pointer; /* Pointer cursor */
+  transition: background-color 0.3s; /* Smooth transition */
+  margin: 20px 0; /* Space above and below */
+}
+
+.download-button:hover {
+  color: #8ec4fc; /* Darker green on hover */
+}
+
+.next-steps {
+  margin-top: 15px; /* Space above next steps */
+  padding: 10px; /* Padding around next steps */
+  border-top: 1px solid #ddd; /* Light border above next steps */
+}
+
+.close2-button {
+  background: none; /* No background */
+  border: none; /* No border */
+  color: black; /* Light gray color */
+  font-size: 34px; /* Increase font size */
+  position: absolute; /* Positioning */
+  top: 15px; /* Distance from the top */
+  right: 15px; /* Distance from the right */
+  cursor: pointer; /* Pointer cursor */
+  transition: color 0.3s; /* Smooth color transition */
+}
+
+.close2-button:hover {
+  color: #ff4d4d; /* Change color on hover */
+}
+
+.done-button {
+  color: #007bff; /* Green background */
+  color: white; /* White text */
+  border: none; /* No border */
+  border-radius: 4px; /* Rounded corners */
+  padding: 10px 15px; /* Padding inside button */
+  cursor: pointer; /* Pointer cursor */
+  transition: background-color 0.3s; /* Smooth transition */
+  margin: 20px 0; /* Space above and below */
+}
+
+
