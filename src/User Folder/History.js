@@ -10,6 +10,7 @@ import {
   updateDoc,
   setDoc,
   serverTimestamp,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import cardIcon from "./card_icon.png";
@@ -40,6 +41,7 @@ const History = ({ userId }) => {
   const [currentProgramId, setCurrentProgramId] = useState(null);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [shareCode, setShareCode] = useState("");
+  const [managedPrograms, setManagedPrograms] = useState([]);
 
   const { state } = useLocation();
   const viewId = state?.viewId;
@@ -89,111 +91,131 @@ const History = ({ userId }) => {
       return;
     }
 
-    const fetchUserPrograms = async () => {
-      try {
-        console.log("Fetching user programs...");
+    const historyQuery = query(
+      collection(db, "User History"),
+      where("user_id", "==", effectiveUserId)
+    );
 
-        const historyQuery = query(
-          collection(db, "User History"),
-          where("user_id", "==", effectiveUserId)
-        );
-        const historySnapshot = await getDocs(historyQuery);
+    const unsubscribe = onSnapshot(
+      historyQuery,
+      async (historySnapshot) => {
+        try {
+          const programsData = await Promise.all(
+            historySnapshot.docs.map(async (docSnapshot) => {
+              const programData = docSnapshot.data();
+              const programRef = doc(
+                db,
+                "Training Programs",
+                programData.program_id
+              );
+              const programSnapshot = await getDoc(programRef);
 
-        const programsData = await Promise.all(
-          historySnapshot.docs.map(async (docSnapshot) => {
-            const programData = docSnapshot.data();
-            const programRef = doc(
-              db,
-              "Training Programs",
-              programData.program_id
-            );
-            const programSnapshot = await getDoc(programRef);
-
-            if (programSnapshot.exists()) {
-              return {
-                id: programData.program_id,
-                ...programData,
-                ...programSnapshot.data(),
-              };
-            }
-            return { id: programData.program_id, ...programData };
-          })
-        );
-
-        const currentDate = new Date();
-        const nowTimestamp = Math.floor(currentDate.getTime() / 1000);
-
-        console.log(`📌 Current Time: ${nowTimestamp} (${currentDate})`);
-
-        const applied = [];
-        const completed = [];
-
-        programsData.forEach((program) => {
-          console.log(`\n🔍 Processing Program: ${program.program_title}`);
-          const selectedDates = program.selected_dates || [];
-          const hasCustomDates = selectedDates.length > 0;
-          let isCompleted = false;
-
-          let startTimestamp = program.start_date;
-          let endTimestamp = program.end_date;
-
-          console.log(`  - selected_dates: ${JSON.stringify(selectedDates)}`);
-          console.log(
-            `  - start_date: ${startTimestamp} (Unix) -> ${new Date(
-              startTimestamp * 1000
-            )}`
-          );
-          console.log(
-            `  - end_date: ${endTimestamp} (Unix) -> ${new Date(
-              endTimestamp * 1000
-            )}`
+              if (programSnapshot.exists()) {
+                return {
+                  id: programData.program_id,
+                  ...programData,
+                  ...programSnapshot.data(),
+                };
+              }
+              return { id: programData.program_id, ...programData };
+            })
           );
 
-          if (hasCustomDates) {
-            // Check if all selected dates have passed
-            const hasFutureDates = selectedDates.some(
-              (date) => date.seconds > nowTimestamp
+          const currentDate = new Date();
+          const nowTimestamp = Math.floor(currentDate.getTime() / 1000);
+
+          const applied = [];
+          const completed = [];
+
+          programsData.forEach((program) => {
+            console.log(`\n🔍 Processing Program: ${program.program_title}`);
+            const selectedDates = program.selected_dates || [];
+            const hasCustomDates = selectedDates.length > 0;
+            let isCompleted = false;
+
+            let startTimestamp = program.start_date;
+            let endTimestamp = program.end_date;
+
+            console.log(`  - selected_dates: ${JSON.stringify(selectedDates)}`);
+            console.log(
+              `  - start_date: ${startTimestamp} (Unix) -> ${new Date(
+                startTimestamp * 1000
+              )}`
             );
-            isCompleted = !hasFutureDates;
-          } else {
-            // Check completion status for non-custom date programs
-            isCompleted = endTimestamp < nowTimestamp;
+            console.log(
+              `  - end_date: ${endTimestamp} (Unix) -> ${new Date(
+                endTimestamp * 1000
+              )}`
+            );
 
-            if (startTimestamp === endTimestamp) {
-              // ✅ One-Day Program Fix
-              const nextDayMidnight = new Date(endTimestamp * 1000);
-              nextDayMidnight.setHours(23, 59, 59, 999); // Set to 11:59:59 PM
-              const completionTime = Math.floor(
-                nextDayMidnight.getTime() / 1000
+            if (hasCustomDates) {
+              const hasFutureDates = selectedDates.some(
+                (date) => date.seconds > nowTimestamp
               );
+              isCompleted = !hasFutureDates;
+            } else {
+              isCompleted = endTimestamp < nowTimestamp;
 
-              isCompleted = nowTimestamp >= completionTime;
+              if (startTimestamp === endTimestamp) {
+                const nextDayMidnight = new Date(endTimestamp * 1000);
+                nextDayMidnight.setHours(23, 59, 59, 999);
+                const completionTime = Math.floor(
+                  nextDayMidnight.getTime() / 1000
+                );
 
-              console.log(
-                `  - One-Day Program Completion Check: now(${nowTimestamp}) >= nextDayMidnight(${completionTime}) -> ${isCompleted}`
-              );
+                isCompleted = nowTimestamp >= completionTime;
+
+                console.log(
+                  `  - One-Day Program Completion Check: now(${nowTimestamp}) >= nextDayMidnight(${completionTime}) -> ${isCompleted}`
+                );
+              }
             }
-          }
 
-          if (isCompleted) {
-            completed.push(program);
-            console.log(`✅ Program Completed: ${program.program_title}`);
-          } else {
-            applied.push(program);
-            console.log(`⏳ Program Still Applied: ${program.program_title}`);
-          }
-        });
+            if (isCompleted) {
+              completed.push(program);
+              console.log(`✅ Program Completed: ${program.program_title}`);
+            } else {
+              applied.push(program);
+              console.log(`⏳ Program Still Applied: ${program.program_title}`);
+            }
+          });
 
-        setAppliedPrograms(applied);
-        setCompletedPrograms(completed);
-      } catch (error) {
-        console.error("❌ Error fetching user programs:", error);
-      } finally {
+          setAppliedPrograms(applied);
+          setCompletedPrograms(completed);
+
+          const trainingProgramsQuery = query(
+            collection(db, "Training Programs"),
+            where("requestor_id", "==", effectiveUserId)
+          );
+
+          const trainingProgramsSnapshot = await getDocs(trainingProgramsQuery);
+
+          const managedPrograms = trainingProgramsSnapshot.docs
+            .filter((docSnapshot) => {
+              const data = docSnapshot.data();
+              const type = (data.requestor_type || "").toLowerCase();
+              return type === "facilitator";
+            })
+            .map((docSnapshot) => ({
+              id: docSnapshot.id,
+              ...docSnapshot.data(),
+            }));
+
+          setManagedPrograms(managedPrograms);
+        } catch (error) {
+          console.error("❌ Error processing real-time user programs:", error);
+        } finally {
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.error("❌ Error setting up real-time listener:", error);
         setLoading(false);
       }
-    };
+    );
 
-    fetchUserPrograms();
+    // Cleanup on unmount
+    return () => unsubscribe();
   }, [effectiveUserId]);
 
   const handleCardClick = (program) => {
@@ -210,6 +232,7 @@ const History = ({ userId }) => {
     event.stopPropagation();
     setCurrentProgramId(programId);
     setShowOverlay(true);
+    addNotification("Hey!", `haha`, "xetesRq36w8JgaiJKx4d");
   };
 
   const handleCloseOverlay = () => {
@@ -373,12 +396,13 @@ const History = ({ userId }) => {
     }
   };
 
+  // 🔁 Function to handle the full sync flow
   const syncAllToGoogleCalendar = async () => {
     const confirmSync = await Swal.fire({
       title: "Sync with Google Calendar?",
       text: "You will be redirected to Google for authentication. Do you want to continue?",
       icon: "info",
-      showCancelButton: true, // Enables Cancel button
+      showCancelButton: true,
       confirmButtonColor: "#3085d6",
       cancelButtonColor: "#d33",
       confirmButtonText: "Proceed",
@@ -407,7 +431,7 @@ const History = ({ userId }) => {
         "width=500,height=600"
       );
 
-      // Check if authentication is completed
+      // Poll until authenticated
       const checkAuthInterval = setInterval(async () => {
         const authCheck = await fetch(`${API_BASE_URL}/check-auth`, {
           credentials: "include",
@@ -416,7 +440,6 @@ const History = ({ userId }) => {
 
         console.log("🔄 Checking auth status:", authStatus);
         if (authStatus.authenticated) {
-          console.log("✅ Authentication complete! Syncing events...");
           clearInterval(checkAuthInterval);
           authWindow.close();
           await syncEventsToGoogleCalendar();
@@ -431,7 +454,22 @@ const History = ({ userId }) => {
 
   // 🔄 Function to sync events after authentication
   const syncEventsToGoogleCalendar = async () => {
-    const events = [...appliedPrograms, ...completedPrograms].map((program) => {
+    const now = new Date();
+
+    // Combine and filter out programs that are already finished
+    const upcomingOrOngoingPrograms = [
+      ...appliedPrograms,
+      ...completedPrograms,
+    ].filter((program) => {
+      const endTime = program.end_date
+        ? new Date(program.end_date * 1000)
+        : new Date(
+            program.selected_dates[0].seconds * 1000 + 3 * 60 * 60 * 1000
+          );
+      return endTime > now;
+    });
+
+    const events = upcomingOrOngoingPrograms.map((program) => {
       const startTime = program.start_date
         ? new Date(program.start_date * 1000).toISOString()
         : new Date(program.selected_dates[0].seconds * 1000).toISOString();
@@ -451,40 +489,51 @@ const History = ({ userId }) => {
       };
     });
 
-    try {
-      console.log("🔄 Syncing to Google Calendar...");
-      const response = await fetch(`${API_BASE_URL}/sync-google-calendar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ userEmail, events }),
+    if (events.length === 0) {
+      return Swal.fire({
+        title: "No Upcoming Programs",
+        text: "🎉 All your training programs are already finished!",
+        icon: "info",
       });
+    }
 
-      if (response.ok) {
-        console.log(`✅ Successfully synced ${events.length} events`);
+    // Show a progress modal
+    Swal.fire({
+      title: "Syncing...",
+      html: `Syncing <b>0</b> of ${events.length} events to Google Calendar.`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
 
-        // ✅ Show success message using SweetAlert2
-        Swal.fire({
-          title: "Success!",
-          text: "✅ Successfully synced all training programs to your Google Calendar!",
-          icon: "success",
-          confirmButtonColor: "#3085d6",
+    try {
+      let syncedCount = 0;
+
+      for (const event of events) {
+        const response = await fetch(`${API_BASE_URL}/sync-google-calendar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ events: [event] }),
         });
-      } else {
-        console.error("❌ Failed to sync with Google Calendar");
 
-        // ❌ Show error message using SweetAlert2
-        Swal.fire({
-          title: "Error!",
-          text: "❌ Failed to sync training programs. Please try again.",
-          icon: "error",
-          confirmButtonColor: "#d33",
-        });
+        syncedCount++;
+        const b = Swal.getHtmlContainer().querySelector("b");
+        if (b) b.textContent = `${syncedCount}`;
+
+        await new Promise((resolve) => setTimeout(resolve, 250)); // match server delay
       }
+
+      Swal.fire({
+        title: "Success!",
+        text: "✅ Successfully synced all upcoming/ongoing programs to your Google Calendar!",
+        icon: "success",
+        confirmButtonColor: "#3085d6",
+      });
     } catch (error) {
       console.error("❌ Error syncing calendar:", error);
-
-      // ❌ Show error message using SweetAlert2
       Swal.fire({
         title: "Error!",
         text: "❌ Error syncing calendar. Please check console logs.",
@@ -504,15 +553,22 @@ const History = ({ userId }) => {
       <div className="flex justify-center">
         <div className="w-full md:w-[60%] bg-white p-6 rounded-lg shadow-lg">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">My Training Schedule</h2>
+            {!name ? (
+              <h2 className="text-xl font-semibold">My Training Schedule</h2>
+            ) : (
+              <h2 className="text-xl font-semibold">
+                {name}'s Training Schedule
+              </h2>
+            )}
 
-            {/* Sync All Button */}
-            <button
-              onClick={syncAllToGoogleCalendar}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg transition"
-            >
-              Sync All to Google Calendar
-            </button>
+            {role !== "admin" && (
+              <button
+                onClick={syncAllToGoogleCalendar}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg transition"
+              >
+                Sync All to Google Calendar
+              </button>
+            )}
           </div>
 
           <div className="w-full max-h-[450px] overflow-hidden">
@@ -762,6 +818,68 @@ const History = ({ userId }) => {
         </div>
       )}
 
+      {managedPrograms.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold flex items-center mt-8">
+            Managed Programs
+            <span className="ml-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+              {managedPrograms.length}
+            </span>
+          </h3>
+
+          <div className={`programs-content ${viewMode}-history`}>
+            <div className="cards-view-history">
+              {managedPrograms.map((program) => (
+                <div
+                  className="program-card-history"
+                  key={program.id}
+                  onClick={() => handleCardClick(program)} // Optional: you can use another click if you want for managed programs
+                >
+                  <img
+                    src={program.thumbnail || "https://via.placeholder.com/100"}
+                    alt={program.program_title}
+                    className="program-thumbnail-history"
+                  />
+                  <div className="program-info-history-completed">
+                    <h4>{program.program_title}</h4>
+                    <p>
+                      <b>Status:</b> Managed
+                    </p>
+                    <p>
+                      <b>Date(s):</b>{" "}
+                      {program.selected_dates?.length > 0 ? (
+                        program.selected_dates
+                          .map((date) =>
+                            new Date(date.seconds * 1000).toLocaleDateString()
+                          )
+                          .join(", ")
+                      ) : (
+                        <>
+                          <b>Start:</b>{" "}
+                          {program.start_date
+                            ? new Date(
+                                program.start_date * 1000
+                              ).toLocaleDateString()
+                            : "N/A"}{" "}
+                          <br />
+                          <b>End:</b>{" "}
+                          {program.end_date
+                            ? new Date(
+                                program.end_date * 1000
+                              ).toLocaleDateString()
+                            : "N/A"}
+                        </>
+                      )}
+                    </p>
+                    {/* You could add extra buttons here if needed */}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Overlay for Rating Form */}
       {showOverlay && (
         <div className="overlay-rating-form">
@@ -814,13 +932,14 @@ const History = ({ userId }) => {
           onClose={() => setIsFollowUsOpen(false)}
         />
       )}
-
-      <button
-        className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-all"
-        onClick={() => setShowJoinModal(true)}
-      >
-        <FaPlus size={24} />
-      </button>
+      {role !== "admin" && (
+        <button
+          className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-all"
+          onClick={() => setShowJoinModal(true)}
+        >
+          <FaPlus size={24} />
+        </button>
+      )}
     </div>
   );
 };

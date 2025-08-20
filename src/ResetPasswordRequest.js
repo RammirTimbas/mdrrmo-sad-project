@@ -147,6 +147,14 @@ const ResetPasswordRequest = () => {
             >
               Recover Password
             </button>
+
+            {/* Back Button */}
+            <button
+              className="mt-4 w-full bg-transparent text-blue-600 hover:text-blue-700 font-semibold p-3 rounded-lg border border-blue-600 hover:bg-blue-100 transition duration-300"
+              onClick={() => navigate(-1)}
+            >
+              Back
+            </button>
           </>
         )}
 

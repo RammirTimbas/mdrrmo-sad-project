@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { db } from "./firebase/firebase";
 import {
   collection,
@@ -9,13 +10,16 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
 } from "firebase/firestore";
+import Swal from "sweetalert2";
 import { FaTrash } from "react-icons/fa";
 import { addNotification } from "./helpers/addNotification";
 
 const Notifications = ({ userId }) => {
   const [notifications, setNotifications] = useState([]);
   const [selectedNotifications, setSelectedNotifications] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -82,36 +86,78 @@ const Notifications = ({ userId }) => {
 
   const handleInviteResponse = async (notificationId, programId, response) => {
     try {
+      const confirmResult = await Swal.fire({
+        title: `Are you sure you want to ${
+          response === "Accept" ? "accept" : "reject"
+        } this invitation?`,
+        icon: response === "Accept" ? "success" : "warning",
+        showCancelButton: true,
+        confirmButtonText: `Yes, ${response}`,
+        cancelButtonText: "Cancel",
+      });
+
+      if (!confirmResult.isConfirmed) {
+        return; // If user cancels, stop the function here
+      }
+
       const notifRef = doc(db, "notifications", notificationId);
       await updateDoc(notifRef, { status: response, is_read: true });
-  
+
       // Fetch logged-in user details
-      const userQuery = query(collection(db, "User Informations"), where("user_ID", "==", userId));
+      const userQuery = query(
+        collection(db, "User Informations"),
+        where("user_ID", "==", userId)
+      );
       const userSnapshot = await getDocs(userQuery);
-  
+
       if (userSnapshot.empty) {
         console.error("User not found in User Informations collection.");
         return;
       }
-  
-      const userData = userSnapshot.docs[0].data(); // Get user details
-  
+
+      const userData = userSnapshot.docs[0].data();
+
       // Fetch the invite to get requestorId
-      const inviteQuery = query(collection(db, "Training Invites"), where("programId", "==", programId), where("userId", "==", userId));
+      const inviteQuery = query(
+        collection(db, "Training Invites"),
+        where("programId", "==", programId),
+        where("userId", "==", userId)
+      );
       const inviteSnapshot = await getDocs(inviteQuery);
-  
+
       if (inviteSnapshot.empty) {
         console.error("Invite not found for this user and program.");
         return;
       }
-  
+
       const inviteData = inviteSnapshot.docs[0].data();
-      const requestorId = inviteData.requestorId; // Get requestor ID from the invite
-  
+      const requestorId = inviteData.requestorId;
+
+      // Fetch program details
+      const programRef = doc(db, "Training Programs", programId);
+      const programSnapshot = await getDoc(programRef);
+
+      if (!programSnapshot.exists()) {
+        console.error("Program not found.");
+        return;
+      }
+
+      const programData = programSnapshot.data();
+      const availableSlots = programData.slots || 0;
+
+      // No slots available
+      if (availableSlots <= 0) {
+        Swal.fire(
+          "No Slots Available",
+          "Sorry, there are no slots left for this program.",
+          "error"
+        );
+        await deleteDoc(notifRef);
+        return;
+      }
+
+      // If accepted
       if (response === "Accept") {
-        const programRef = doc(db, "Training Programs", programId);
-  
-        // Construct approved applicant data
         const applicantData = {
           [`${userId}_${programId}`]: {
             application_id: `${userId}_${programId}`,
@@ -120,27 +166,29 @@ const Notifications = ({ userId }) => {
             user_id: userId,
           },
         };
-  
-        // Update Firestore document with approved applicants
+
         await updateDoc(programRef, {
-          [`approved_applicants.${userId}_${programId}`]: applicantData[`${userId}_${programId}`],
+          [`approved_applicants.${userId}_${programId}`]:
+            applicantData[`${userId}_${programId}`],
+          slots: availableSlots - 1,
         });
-  
-        alert("You have successfully joined the training!");
-      } else {
-        alert("You have declined the invitation.");
-      }
-  
-      // Notify the requestor about the response
-      if (requestorId) {
+
+        Swal.fire(
+          "Success!",
+          "You have successfully joined the program.",
+          "success"
+        );
+
         await addNotification(
           "Invitation Response",
-          `${userData.full_name} has ${response.toLowerCase()}ed your training invitation for program ID: ${programId}.`,
+          `${userData.full_name} has accepted your training invitation for program ID: ${programId}.`,
           requestorId
         );
+      } else {
+        Swal.fire("Notice", "You have declined the invitation.", "info");
       }
-  
-      // Refresh notifications after action
+
+      // Refresh notifications
       setNotifications((prev) =>
         prev.map((notif) =>
           notif.id === notificationId
@@ -152,8 +200,17 @@ const Notifications = ({ userId }) => {
       console.error("Error updating invitation response:", error);
     }
   };
-  
-  
+
+  const handleNotificationClick = (notification) => {
+    console.log("Notification clicked:", notification);
+    if (notification.action_link) {
+      navigate(notification.action_link, {
+        state: {
+          program: notification.program_data || null,
+        },
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 flex flex-col">
@@ -190,7 +247,13 @@ const Notifications = ({ userId }) => {
                 notification.is_read ? "border-gray-300" : "border-blue-500"
               }`}
             >
-              <div className="flex-1">
+              <div
+                className="flex-1 cursor-pointer"
+                onClick={() => {
+                  handleNotificationClick(notification);
+                  markAsRead(notification.id);
+                }}
+              >
                 <h3 className="text-md font-semibold">{notification.title}</h3>
                 <p className="text-sm">{notification.message}</p>
                 <span className="text-xs text-gray-500">
@@ -213,7 +276,7 @@ const Notifications = ({ userId }) => {
                           "Accept"
                         )
                       }
-                      className="text-green-600 hover:text-green-800 border border-green-600 px-2 py-1 rounded"
+                      className="bg-green-100 text-green-600 hover:bg-green-50 border border-green-600 px-4 py-2 rounded transition"
                     >
                       Accept
                     </button>
@@ -225,7 +288,7 @@ const Notifications = ({ userId }) => {
                           "Reject"
                         )
                       }
-                      className="text-red-600 hover:text-red-800 border border-red-600 px-2 py-1 rounded"
+                      className="bg-red-100 text-red-600 hover:bg-red-50 border border-red-600 px-4 py-2 rounded transition"
                     >
                       Reject
                     </button>

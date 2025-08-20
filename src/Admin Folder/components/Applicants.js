@@ -22,6 +22,8 @@ import { addNotification } from "../../helpers/addNotification";
 import Lottie from "lottie-react";
 import MainLoading from "../../lottie-files-anim/loading-main.json";
 
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
+
 const Applicants = ({ userId }) => {
   const [applicantsData, setApplicantsData] = useState([]);
   const [filteredApplicants, setFilteredApplicants] = useState([]);
@@ -37,6 +39,8 @@ const Applicants = ({ userId }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
   const [selectedApplicant, setSelectedApplicant] = useState(null);
+
+  const [isLoading, setIsLoading] = useState(false);
 
   // Fetch admin name
   useEffect(() => {
@@ -132,6 +136,7 @@ const Applicants = ({ userId }) => {
       reverseButtons: true,
     }).then(async (result) => {
       if (result.isConfirmed) {
+        setIsLoading(true);
         setIsProcessing((prev) => ({ ...prev, [applicationId]: true }));
 
         try {
@@ -217,6 +222,7 @@ const Applicants = ({ userId }) => {
             "error"
           );
         } finally {
+          setIsLoading(false);
           setIsProcessing((prev) => ({ ...prev, [applicationId]: false }));
         }
       }
@@ -235,6 +241,7 @@ const Applicants = ({ userId }) => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
+          setIsLoading(true);
           // Delete the applicant from the "Applicants" collection
           const applicantRef = doc(
             db,
@@ -282,6 +289,8 @@ const Applicants = ({ userId }) => {
             "error"
           );
         }
+        
+        setIsLoading(false);
       }
     });
   };
@@ -345,9 +354,7 @@ const Applicants = ({ userId }) => {
             <div className="w-24 h-24 mb-6">
               <Lottie animationData={MainLoading} loop={true} />
             </div>
-            <p className="text-gray-600">
-              Please wait...
-            </p>
+            <p className="text-gray-600">Please wait...</p>
           </div>
         </div>
       ) : filteredApplicants.length > 0 ? (
@@ -502,6 +509,18 @@ const Applicants = ({ userId }) => {
           >
             Next
           </button>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+            <h2 className="text-xl font-semibold mb-2">Loading...</h2>
+            <p className="text-gray-600">
+              This could take a while, sip a coffee first ☕
+            </p>
+          </div>
         </div>
       )}
     </div>

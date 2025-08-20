@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import trainingLogo from "./logo/training_logo.png";
 import createLogo from "./logo/post_icon.png";
+import { Timestamp } from "firebase/firestore";
+
 import plusIcon from "./logo/plus_icon.png";
 import cardIcon from "./logo/card_icon.png";
 import listIcon from "./logo/list_icon.png";
@@ -13,6 +15,7 @@ import {
   doc,
   where,
   query,
+  onSnapshot,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
@@ -32,7 +35,7 @@ import { FaTimes, FaCloudUploadAlt } from "react-icons/fa";
 
 import { addNotification } from "../../helpers/addNotification";
 import Lottie from "lottie-react";
-import SubLoading from "../../lottie-files-anim/sub-loading.json";
+import MainLoading from "../../lottie-files-anim/loading-main.json";
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -74,7 +77,13 @@ const TrainingPrograms = ({ userId }) => {
     trainer_assigned: "",
     type: "",
     restriction: "",
+    restriction: "",
+    dateMode: "",
+    selected_dates: [],
+    start_time: "",
   });
+
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const fetchAdminName = async () => {
@@ -127,29 +136,37 @@ const TrainingPrograms = ({ userId }) => {
 
   // Fetch training types and trainer names
   useEffect(() => {
-    const fetchTrainingTypesAndTrainers = async () => {
-      try {
-        const trainingTypeSnapshot = await getDocs(
-          collection(db, "Training Type")
-        );
+    const unsubscribeTrainingTypes = onSnapshot(
+      collection(db, "Training Type"),
+      (trainingTypeSnapshot) => {
         const trainingTypeData = trainingTypeSnapshot.docs.map(
           (doc) => doc.data().training_type_name
         );
         setTrainingTypes(trainingTypeData);
+      },
+      (error) => {
+        console.error("Error fetching training types:", error);
+      }
+    );
 
-        const trainerNameSnapshot = await getDocs(
-          collection(db, "Trainer Name")
-        );
+    const unsubscribeTrainerNames = onSnapshot(
+      collection(db, "Trainer Name"),
+      (trainerNameSnapshot) => {
         const trainerNameData = trainerNameSnapshot.docs.map(
           (doc) => doc.data().trainer_name
         );
         setTrainerNames(trainerNameData);
-      } catch (error) {
-        console.error("Error fetching training types or trainers:", error);
+      },
+      (error) => {
+        console.error("Error fetching trainer names:", error);
       }
-    };
+    );
 
-    fetchTrainingTypesAndTrainers();
+    // Cleanup listeners when component unmounts
+    return () => {
+      unsubscribeTrainingTypes();
+      unsubscribeTrainerNames();
+    };
   }, []);
 
   const handleThumbnailChange = (e) => {
@@ -257,71 +274,93 @@ const TrainingPrograms = ({ userId }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const now = Date.now();
     const startDate = new Date(newProgram.start_date);
     const endDate = new Date(newProgram.end_date);
     const slotNo = newProgram.slots;
-    const now = Date.now();
     const age = newProgram.restriction;
 
-    if (endDate < startDate) {
-      Swal.fire({
-        title: "Invalid Date",
-        text: "End date must be later than the start date.",
-        icon: "warning",
-        confirmButtonText: "OK",
-      });
-      return;
-    } else if (slotNo < 1) {
-      Swal.fire({
-        title: "Invalid Slot Number",
-        text: "Slot number should be not lower than 1",
-        icon: "warning",
-        confirmButtonText: "OK",
-      });
-      return;
-    } else if (startDate < now) {
-      Swal.fire({
-        title: "Invalid Date",
-        text: "Start date must not be later than today",
-        icon: "warning",
-        confirmButtonText: "OK",
-      });
-      return;
-    } else if (age && age <= 0) {
-      Swal.fire({
-        title: "Invalid Input",
-        text: "Age restriction could not be lower than 1",
-        icon: "warning",
-        confirmButtonText: "OK",
-      });
-      return;
+    // 🔹 Date validations
+    if (newProgram.dateMode === "range") {
+      if (endDate < startDate) {
+        return Swal.fire(
+          "Invalid Date",
+          "End date must be after start date.",
+          "warning"
+        );
+      }
+      if (startDate < now) {
+        return Swal.fire(
+          "Invalid Date",
+          "Start date must not be in the past.",
+          "warning"
+        );
+      }
+    } else if (newProgram.dateMode === "specific") {
+      if (
+        !newProgram.selected_dates ||
+        newProgram.selected_dates.length === 0
+      ) {
+        return Swal.fire(
+          "Missing Dates",
+          "Please select at least one date.",
+          "warning"
+        );
+      }
+    }
+
+    // 🔹 Slot and Age validations
+    if (slotNo < 1) {
+      return Swal.fire(
+        "Invalid Slot Number",
+        "Slot number should not be lower than 1",
+        "warning"
+      );
+    }
+    if (age && age <= 0) {
+      return Swal.fire(
+        "Invalid Input",
+        "Age restriction could not be lower than 1",
+        "warning"
+      );
     }
 
     try {
+      setShowForm(false);
+      setIsLoading(true);
+      // 🔹 Generate batch code
       const batchDateCode = startDate.getTime() / 1000;
-      // 🔹 Extract initials from program title
+
       const programInitials = newProgram.program_title
         .split(" ")
         .map((word) => word.charAt(0).toUpperCase())
         .join("");
 
-      // ✅ Extract initials from program type
       const typeInitials = newProgram.type
         .split(" ")
         .map((word) => word.charAt(0).toUpperCase())
         .join("");
 
-      // ✅ Determine batch date (earliest from selected_dates or start_date)
       let batchDate = new Date(batchDateCode * 1000)
         .toLocaleDateString("en-GB")
         .split("/")
         .reverse()
         .join("");
 
-      if (newProgram.selected_dates && newProgram.selected_dates.length > 0) {
-        // ✅ Convert Firestore timestamps to JavaScript Dates and find the earliest date
+      if (
+        newProgram.dateMode === "specific" &&
+        newProgram.selected_dates.length > 0
+      ) {
         const earliestDate = Math.min(
-          ...newProgram.selected_dates.map((date) => date.toDate().getTime())
+          ...newProgram.selected_dates.map((date) => {
+            if (date.seconds) {
+              // Already Firestore Timestamp
+              return date.toDate().getTime();
+            } else {
+              // Local JS Date
+              return new Date(date).getTime();
+            }
+          })
         );
         batchDate = new Date(earliestDate)
           .toLocaleDateString("en-GB")
@@ -330,28 +369,56 @@ const TrainingPrograms = ({ userId }) => {
           .join("");
       }
 
-      // ✅ Generate random 5-character alphanumeric string
       const randomCode = Math.random()
         .toString(36)
         .substring(2, 7)
         .toUpperCase();
-
-      // ✅ Generate batchCode in correct format
       const batchCode = `${programInitials}-${batchDate}-${typeInitials}-${randomCode}`;
 
       console.log(`📌 Generated Batch Code: ${batchCode}`);
 
-      await addDoc(collection(db, "Training Programs"), {
+      // 🔹 Prepare data for Firestore
+      let programData = {
         ...newProgram,
-        start_date: Math.floor(startDate.getTime() / 1000),
-        end_date: Math.floor(endDate.getTime() / 1000),
         slots: Number(newProgram.slots),
         requirements: requirementsList,
         restriction: Number(newProgram.restriction),
         batchCode: batchCode,
-      });
+      };
 
-      setShowForm(false);
+      if (newProgram.start_time) {
+        const [hours, minutes] = newProgram.start_time.split(":").map(Number);
+        startDate.setHours(hours, minutes);
+        endDate.setHours(hours, minutes);
+      }
+
+      if (newProgram.dateMode === "range") {
+        programData.start_date = Math.floor(startDate.getTime() / 1000);
+        programData.end_date = Math.floor(endDate.getTime() / 1000);
+        programData.selected_dates = [];
+      } else if (newProgram.dateMode === "specific") {
+        programData.start_date = null;
+        programData.end_date = null;
+        programData.selected_dates = newProgram.selected_dates.map((date) => {
+          let dateObj = date.seconds ? date.toDate() : new Date(date);
+          // ⏰ Apply start_time to each selected date
+          if (newProgram.start_time) {
+            const [hours, minutes] = newProgram.start_time
+              .split(":")
+              .map(Number);
+            dateObj.setHours(hours, minutes);
+          }
+          return Timestamp.fromDate(dateObj);
+        });
+      }
+
+      // 🔹 Add to Firestore
+      const docRef = await addDoc(
+        collection(db, "Training Programs"),
+        programData
+      );
+      const updatedProgram = { ...programData, id: docRef.id };
+
       setNewProgram({
         program_title: "",
         description: "",
@@ -365,9 +432,12 @@ const TrainingPrograms = ({ userId }) => {
         trainer_assigned: "",
         type: "",
         restriction: "",
+        dateMode: "",
+        selected_dates: [],
+        start_time: "",
       });
 
-      // get updated list of programs
+      // 🔹 Refresh programs
       const querySnapshot = await getDocs(collection(db, "Training Programs"));
       const programsData = querySnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -376,6 +446,7 @@ const TrainingPrograms = ({ userId }) => {
       setPrograms(programsData);
       setFilteredPrograms(programsData);
 
+      // 🔹 Log creation
       await addDoc(collection(db, "Logs"), {
         name: adminName,
         type: "Program Creation",
@@ -383,7 +454,7 @@ const TrainingPrograms = ({ userId }) => {
         date: new Date(),
       });
 
-      // display success message
+      // 🔹 Success popup
       Swal.fire({
         title: "Program Added!",
         text: "The training program has been successfully added.",
@@ -391,10 +462,19 @@ const TrainingPrograms = ({ userId }) => {
         confirmButtonText: "OK",
       });
 
+      // 🔹 Send notification
       addNotification(
         "New Programs Available!",
-        `Greetings! The MDRRMO - DAET just posted a new training program titled '${newProgram.program_title}'. Check it out!`,
-        null
+        `Greetings! The MDRRMO - DAET just posted a new training program titled '${newProgram.program_title}'. Click here to check it out.`,
+        null,
+        {
+          action_link: `/user/home/${updatedProgram.id}`,
+          program_data: {
+            ...updatedProgram,
+            start_date: programData.start_date,
+            end_date: programData.end_date,
+          },
+        }
       );
     } catch (error) {
       console.error("Error adding program:", error);
@@ -404,6 +484,8 @@ const TrainingPrograms = ({ userId }) => {
         icon: "error",
         confirmButtonText: "OK",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -529,6 +611,35 @@ const TrainingPrograms = ({ userId }) => {
     navigate(`/admin/training-programs/${program.id}`, { state: { program } });
   };
 
+  const itemsPerPage = 10; // Set how many items you want to display per page
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Calculate the total number of pages
+  const totalPages = Math.ceil(filteredPrograms.length / itemsPerPage);
+
+  // Slice the programs array for the current page
+  const currentPrograms = filteredPrograms.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Handle pagination change
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handlePageClick = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
   return (
     <div className="training-programs-page">
       {/* Title Bar */}
@@ -560,86 +671,204 @@ const TrainingPrograms = ({ userId }) => {
         <div className="overlay">
           <div className="create-program-form">
             <div className="form-left">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold">
-                  Add New Training Program
-                </h3>
+              <div className="form-header">
+                <h3 className="form-title">Add New Training Program</h3>
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="text-red-600 hover:text-red-800 text-lg red-bg"
+                  className="form-close-btn"
                 >
                   X
                 </button>
               </div>
-              <hr></hr>
-              <form onSubmit={handleSubmit} className="two-column-form">
+              <hr className="form-divider" />
+              <form onSubmit={handleSubmit} className="custom-form">
                 <div className="form-group">
-                  <label htmlFor="program_title">Program Title:</label>
+                  <label htmlFor="program_title" className="form-label">
+                    Program Title:
+                  </label>
                   <input
                     type="text"
                     id="program_title"
                     name="program_title"
                     value={newProgram.program_title}
                     onChange={handleInputChange}
+                    className="form-input"
                     required
                   />
                 </div>
+
                 <div className="form-group">
-                  <label htmlFor="description">Description:</label>
+                  <label htmlFor="description" className="form-label">
+                    Description:
+                  </label>
                   <textarea
                     id="description"
                     name="description"
                     value={newProgram.description}
                     onChange={handleInputChange}
+                    className="form-textarea"
                     required
                   />
                 </div>
+
                 <div className="form-group">
-                  <label htmlFor="program_venue">Venue:</label>
+                  <label htmlFor="program_venue" className="form-label">
+                    Venue:
+                  </label>
                   <input
                     type="text"
                     id="program_venue"
                     name="program_venue"
                     value={newProgram.program_venue}
                     onChange={handleInputChange}
+                    className="form-input"
                     required
                   />
                 </div>
+
                 <div className="form-group">
-                  <label htmlFor="start_date">Start Date:</label>
+                  <label htmlFor="dateMode" className="form-label">
+                    Date Selection Mode:
+                  </label>
+                  <select
+                    value={newProgram.dateMode}
+                    onChange={(e) =>
+                      setNewProgram({
+                        ...newProgram,
+                        dateMode: e.target.value,
+                        selected_dates: [],
+                      })
+                    }
+                    className="form-select"
+                    required
+                  >
+                    <option value="">Select Mode</option>
+                    <option value="range">Date Range</option>
+                    <option value="specific">Selected Dates</option>
+                  </select>
+                </div>
+
+                {newProgram.dateMode === "range" && (
+                  <>
+                    <div className="form-group">
+                      <label htmlFor="start_date" className="form-label">
+                        Start Date:
+                      </label>
+                      <input
+                        type="date"
+                        id="start_date"
+                        name="start_date"
+                        value={newProgram.start_date}
+                        onChange={handleInputChange}
+                        className="form-input"
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="end_date" className="form-label">
+                        End Date:
+                      </label>
+                      <input
+                        type="date"
+                        id="end_date"
+                        name="end_date"
+                        value={newProgram.end_date}
+                        onChange={handleInputChange}
+                        className="form-input"
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+
+                {newProgram.dateMode === "specific" && (
+                  <div className="form-group">
+                    <label className="form-label">Select Specific Dates:</label>
+                    <input
+                      type="date"
+                      onChange={(e) => {
+                        const date = new Date(e.target.value);
+                        if (
+                          !newProgram.selected_dates.some(
+                            (d) =>
+                              new Date(d).toDateString() === date.toDateString()
+                          )
+                        ) {
+                          setNewProgram((prev) => ({
+                            ...prev,
+                            selected_dates: [
+                              ...(prev.selected_dates || []),
+                              date,
+                            ],
+                          }));
+                        }
+                      }}
+                      className="form-input"
+                    />
+                    <div className="requirements-list">
+                      {(newProgram.selected_dates || []).map((date, index) => (
+                        <div key={index} className="requirement-tag">
+                          <span>{new Date(date).toLocaleDateString()}</span>
+                          <button
+                            className="remove-btn"
+                            onClick={() => {
+                              const updatedDates =
+                                newProgram.selected_dates.filter(
+                                  (_, i) => i !== index
+                                );
+                              setNewProgram({
+                                ...newProgram,
+                                selected_dates: updatedDates,
+                              });
+                            }}
+                          >
+                            x
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label htmlFor="start_time" className="form-label">
+                    Time:
+                  </label>
                   <input
-                    type="date"
-                    id="start_date"
-                    name="start_date"
-                    value={newProgram.start_date}
-                    onChange={handleInputChange}
+                    type="time"
+                    value={newProgram.start_time || ""}
+                    onChange={(e) =>
+                      setNewProgram({
+                        ...newProgram,
+                        start_time: e.target.value,
+                      })
+                    }
+                    className="form-input"
                     required
                   />
                 </div>
+
                 <div className="form-group">
-                  <label htmlFor="end_date">End Date:</label>
+                  <label htmlFor="slots" className="form-label">
+                    Slots:
+                  </label>
                   <input
-                    type="date"
-                    id="end_date"
-                    name="end_date"
-                    value={newProgram.end_date}
+                    type="number"
+                    id="slots"
+                    name="slots"
+                    value={newProgram.slots}
                     onChange={handleInputChange}
+                    className="form-input"
                     required
                   />
                 </div>
+
                 <div className="form-group">
-                  <label htmlFor="materials_needed">Materials Needed:</label>
-                  <textarea
-                    id="materials_needed"
-                    name="materials_needed"
-                    value={newProgram.materials_needed}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="requirements">Additional Requirements:</label>
+                  <label htmlFor="requirements" className="form-label">
+                    Additional Requirements:
+                  </label>
                   <textarea
                     id="requirements"
                     name="requirements"
@@ -647,6 +876,7 @@ const TrainingPrograms = ({ userId }) => {
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
                     placeholder="Type a requirement and press Enter"
+                    className="form-textarea"
                   />
                   <div className="requirements-list">
                     {requirementsList.map((requirement, index) => (
@@ -654,8 +884,7 @@ const TrainingPrograms = ({ userId }) => {
                         <span>{requirement}</span>
                         <button
                           onClick={() => removeRequirement(index)}
-                          className="remove-btn10"
-                          aria-label="Remove requirement"
+                          className="remove-btn"
                         >
                           x
                         </button>
@@ -663,23 +892,29 @@ const TrainingPrograms = ({ userId }) => {
                     ))}
                   </div>
                 </div>
+
                 <div className="form-group">
-                  <label htmlFor="slots">Slots:</label>
-                  <input
-                    type="number"
-                    id="slots"
-                    name="slots"
-                    value={newProgram.slots}
+                  <label htmlFor="materials_needed" className="form-label">
+                    Materials Needed:
+                  </label>
+                  <textarea
+                    id="materials_needed"
+                    name="materials_needed"
+                    value={newProgram.materials_needed}
                     onChange={handleInputChange}
+                    className="form-textarea"
                     required
                   />
                 </div>
+
                 <div className="form-group">
-                  <label htmlFor="trainer_assigned">Trainer Assigned:</label>
+                  <label htmlFor="trainer_assigned" className="form-label">
+                    Trainer Assigned:
+                  </label>
                   <select
                     id="trainer_assigned"
                     name="trainer_assigned"
-                    className="dropdown"
+                    className="form-select"
                     value={newProgram.trainer_assigned}
                     onChange={handleInputChange}
                     required
@@ -692,12 +927,15 @@ const TrainingPrograms = ({ userId }) => {
                     ))}
                   </select>
                 </div>
+
                 <div className="form-group">
-                  <label htmlFor="type">Training Type:</label>
+                  <label htmlFor="type" className="form-label">
+                    Training Type:
+                  </label>
                   <select
                     id="type"
                     name="type"
-                    className="dropdown"
+                    className="form-select"
                     value={newProgram.type}
                     onChange={handleInputChange}
                     required
@@ -710,8 +948,11 @@ const TrainingPrograms = ({ userId }) => {
                     ))}
                   </select>
                 </div>
+
                 <div className="form-group">
-                  <label htmlFor="restriction">Minimum Age:</label>
+                  <label htmlFor="restriction" className="form-label">
+                    Minimum Age:
+                  </label>
                   <input
                     type="number"
                     id="restriction"
@@ -719,9 +960,13 @@ const TrainingPrograms = ({ userId }) => {
                     value={newProgram.restriction}
                     onChange={handleInputChange}
                     placeholder="(Leave blank if there's no age restriction)"
+                    className="form-input"
                   />
                 </div>
-                <button type="submit">Post Program</button>
+
+                <button type="submit" className="submit-btn">
+                  Post Program
+                </button>
               </form>
             </div>
 
@@ -966,17 +1211,20 @@ const TrainingPrograms = ({ userId }) => {
 
         <div className={`results-content ${viewMode}`}>
           {loading ? (
-            <div className="loading-screen">
-              <div className="bg-white p-8 rounded-2xl">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center">
                 <div className="w-24 h-24 mb-6">
-                  <Lottie animationData={SubLoading} loop={true} />
+                  <Lottie animationData={MainLoading} loop={true} />
                 </div>
+                <p className="text-gray-600">
+                  Great things takes time. Please be patient.
+                </p>
               </div>
             </div>
-          ) : filteredPrograms.length > 0 ? (
+          ) : currentPrograms.length > 0 ? (
             viewMode === "cards" ? (
               <div className="cards-view">
-                {filteredPrograms.map((program) => (
+                {currentPrograms.map((program) => (
                   <div
                     className="program-card"
                     key={program.id}
@@ -1046,7 +1294,7 @@ const TrainingPrograms = ({ userId }) => {
               </div>
             ) : (
               <ul className="list-view">
-                {filteredPrograms.map((program) => (
+                {currentPrograms.map((program) => (
                   <li className="program-list-item" key={program.id}>
                     <h4>{program.program_title}</h4>
                     <p>{program.description}</p>
@@ -1060,8 +1308,54 @@ const TrainingPrograms = ({ userId }) => {
               <p>No result found.</p>
             </div>
           )}
+
+          {/* Pagination Controls */}
+          {filteredPrograms.length > itemsPerPage && (
+            <div className="flex justify-center items-center w-full mt-6 gap-4">
+              <button
+                className="prev-page px-6 py-2 text-sm font-semibold text-white bg-green-500 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed"
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <div className="flex gap-2">
+                {Array.from({ length: totalPages }, (_, index) => (
+                  <button
+                    key={index + 1}
+                    className={`page-number px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 rounded-md border border-gray-300 transition duration-300 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                      currentPage === index + 1
+                        ? "bg-green-500 text-white border-green-500"
+                        : ""
+                    }`}
+                    onClick={() => handlePageClick(index + 1)}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="next-page px-6 py-2 text-sm font-semibold text-white bg-green-500 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </div>
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+            <h2 className="text-xl font-semibold mb-2">Loading...</h2>
+            <p className="text-gray-600">
+              This could take a while, sip a coffee first ☕
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

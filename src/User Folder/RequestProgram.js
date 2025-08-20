@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import DatePicker from "react-datepicker";
@@ -14,6 +15,7 @@ import {
   query,
   where,
   serverTimestamp,
+  onSnapshot,
 } from "firebase/firestore";
 
 export default function RequestProgram({ userId }) {
@@ -29,6 +31,9 @@ export default function RequestProgram({ userId }) {
   const [submittedRequests, setSubmittedRequests] = useState([]);
   const [trainingTypes, setTrainingTypes] = useState([]);
   const [visibility, setVisibility] = useState("Private");
+  const [requestorType, setRequestorType] = useState("");
+  const [thumbnail, setThumbnail] = useState(null);
+
   const [loading, setLoading] = useState(true);
 
   const [startDate, setStartDate] = useState(new Date());
@@ -39,10 +44,13 @@ export default function RequestProgram({ userId }) {
   const [dateSelectionMode, setDateSelectionMode] = useState(""); // "range" | "weekly" | "custom"
   const [customDates, setCustomDates] = useState([]); // Array of selected dates
   const [errors, setErrors] = useState({});
+  const [filteredRequests, setFilteredRequests] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("Approved");
 
   const validateForm = () => {
     let newErrors = {};
 
+    if (!programTitle) newErrors.programTitle = "Program Title is required.";
     if (!trainingType) newErrors.trainingType = "Training Type is required.";
     if (!dateSelectionMode) newErrors.dateSelectionMode = "Date is required.";
     if (dateSelectionMode === "range") {
@@ -56,92 +64,105 @@ export default function RequestProgram({ userId }) {
     if (!visibility) newErrors.visibility = "Visibility is required.";
     if (!numParticipants)
       newErrors.numParticipants = "Number of participants is required.";
+    if (!requestorType)
+      newErrors.requestorType = "Requestor Type is required.";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        if (!userId) return;
+    // Filter by status and sort by timestamp (recent to oldest)
+    const filtered = submittedRequests
+      .filter((request) => request.status === statusFilter)
+      .sort((a, b) => b.timestamp - a.timestamp);
 
-        const q = query(
-          collection(db, "Training Requests"),
-          where("user_ID", "==", userId) // ✅ Fetch only the logged-in user's requests
-        );
+    setFilteredRequests(filtered);
+  }, [submittedRequests, statusFilter]);
 
-        const snapshot = await getDocs(q);
+  useEffect(() => {
+    if (!userId) return;
+
+    const q = query(
+      collection(db, "Training Requests"),
+      where("user_ID", "==", userId)
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
         const requests = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-
         setSubmittedRequests(requests);
-      } catch (error) {
+        setLoading(false);
+      },
+      (error) => {
         console.error("Error fetching requests:", error);
-      } finally {
         setLoading(false);
       }
-    };
+    );
 
-    fetchRequests();
-  }, []);
+    return () => unsubscribe();
+  }, [userId]);
 
   // Fetch training programs from Firestore
   useEffect(() => {
-    const fetchTrainingPrograms = async () => {
-      try {
-        const programsCollection = collection(db, "Training Programs");
-        const snapshot = await getDocs(programsCollection);
-        const programs = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+    const programsCollection = collection(db, "Training Programs");
 
-        setTrainingPrograms(programs);
+    const unsubscribe = onSnapshot(
+      programsCollection,
+      (snapshot) => {
+        try {
+          const programs = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
 
-        // Create a Set of occupied dates
-        const occupied = new Set();
+          setTrainingPrograms(programs);
 
-        programs.forEach((program) => {
-          if (program.selected_dates && program.selected_dates.length > 0) {
-            // 🟢 Convert Firebase timestamps in selected_dates to JS Date objects
-            program.selected_dates.forEach((dateObj) => {
-              let date;
-              if (dateObj.seconds) {
-                // If stored as a Firestore Timestamp object
-                date = new Date(dateObj.seconds * 1000);
-              } else if (dateObj.toDate) {
-                // If it's an actual Firestore Timestamp instance
-                date = dateObj.toDate();
-              } else {
-                // If it's already a valid JS date
-                date = new Date(dateObj);
+          const occupied = new Set();
+
+          programs.forEach((program) => {
+            if (program.selected_dates && program.selected_dates.length > 0) {
+              // 🟢 Convert Firebase timestamps in selected_dates to JS Date objects
+              program.selected_dates.forEach((dateObj) => {
+                let date;
+                if (dateObj.seconds) {
+                  date = new Date(dateObj.seconds * 1000);
+                } else if (dateObj.toDate) {
+                  date = dateObj.toDate();
+                } else {
+                  date = new Date(dateObj);
+                }
+
+                occupied.add(date.toDateString());
+              });
+            } else if (program.start_date && program.end_date) {
+              // 🔵 Handle date range if no selected_dates exist
+              const start = new Date(program.start_date * 1000);
+              const end = new Date(program.end_date * 1000);
+
+              let currentDate = new Date(start);
+              while (currentDate <= end) {
+                occupied.add(currentDate.toDateString());
+                currentDate.setDate(currentDate.getDate() + 1);
               }
-
-              occupied.add(date.toDateString());
-            });
-          } else if (program.start_date && program.end_date) {
-            // 🔵 Handle date range if no selected_dates exist
-            const start = new Date(program.start_date * 1000);
-            const end = new Date(program.end_date * 1000);
-
-            let currentDate = new Date(start);
-            while (currentDate <= end) {
-              occupied.add(currentDate.toDateString()); // Store date as string for easy comparison
-              currentDate.setDate(currentDate.getDate() + 1); // Move to the next day
             }
-          }
-        });
+          });
 
-        setOccupiedDates(occupied); // Store occupied dates
-      } catch (error) {
-        console.error("Error fetching training programs:", error);
+          setOccupiedDates(occupied);
+        } catch (error) {
+          console.error("Error processing training programs snapshot:", error);
+        }
+      },
+      (error) => {
+        console.error("Error fetching training programs in real-time:", error);
       }
-    };
+    );
 
-    fetchTrainingPrograms();
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -194,14 +215,14 @@ export default function RequestProgram({ userId }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    e.preventDefault();
     if (validateForm()) {
       console.log("Form submitted successfully!");
     }
 
     // Validate inputs based on selection mode
     if (
-      trainingType === "" ||
+      programTitle.trim() === "" ||
+      trainingType.trim() === "" ||
       venue.trim() === "" ||
       (dateSelectionMode === "range" && (!startDate || !endDate)) ||
       (dateSelectionMode === "custom" && customDates.length === 0)
@@ -218,6 +239,19 @@ export default function RequestProgram({ userId }) {
       if (!userId) {
         Swal.fire("Error", "User not logged in!", "error");
         return;
+      }
+      const storage = getStorage();
+
+      let thumbnailUrl = "";
+
+      // Upload thumbnail if exists
+      if (thumbnail) {
+        const thumbnailRef = ref(
+          storage,
+          `thumbnails/${Date.now()}_${thumbnail.name}`
+        );
+        await uploadBytes(thumbnailRef, thumbnail);
+        thumbnailUrl = await getDownloadURL(thumbnailRef);
       }
 
       // Get full name from "User Informations" collection
@@ -241,9 +275,11 @@ export default function RequestProgram({ userId }) {
         num_participants: numParticipants,
         emails: emails,
         requestor: fullName,
+        requestor_type: requestorType,
         user_ID: userId,
         status: "Pending",
         visibility: visibility,
+        thumbnail: thumbnailUrl,
         timestamp: serverTimestamp(),
       };
 
@@ -390,7 +426,7 @@ export default function RequestProgram({ userId }) {
                 <div className="flex justify-center">
                   <div className="w-full md:w-[60%] bg-white p-6 rounded-lg shadow-lg">
                     <h2 className="text-xl font-semibold mb-4">
-                      Training Schedule
+                      MDRRMO Training Schedule
                     </h2>
 
                     <div className="w-full max-h-[450px] overflow-hidden">
@@ -510,13 +546,13 @@ export default function RequestProgram({ userId }) {
                       value={programTitle}
                       onChange={(e) => {
                         setProgramTitle(e.target.value);
-                        setErrors({ ...errors, venue: "" });
+                        setErrors({ ...errors, programTitle: "" });
                       }}
                       className="w-full p-3 rounded bg-white text-black border border-blue-500 focus:ring focus:ring-blue-400"
                     />
-                    {errors.venue && (
+                    {errors.programTitle && (
                       <p className="text-red-500 text-sm mt-1">
-                        {errors.venue}
+                        {errors.programTitle}
                       </p>
                     )}
                   </div>
@@ -673,6 +709,88 @@ export default function RequestProgram({ userId }) {
                     )}
                   </div>
 
+                  {/* Thumbnail Upload */}
+                  <div>
+                    <label className="block text-lg font-medium mb-2">
+                      Upload Thumbnail Image
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        setThumbnail(e.target.files[0]);
+                        setErrors({ ...errors, thumbnail: "" });
+                      }}
+                      className="w-full p-3 rounded bg-white text-black border border-blue-500"
+                    />
+                    {errors.thumbnail && (
+                      <p className="text-red-500 text-sm mt-1">
+                        {errors.thumbnail}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Requestor Type */}
+                  <div>
+                    <label className="block text-lg font-medium mb-2">
+                      Requestor Type
+                    </label>
+                    <div className="flex justify-center items-center space-x-8">
+                      <label className="flex items-center space-x-2">
+                        {" "}
+                        {/* slightly bigger gap */}
+                        <input
+                          type="radio"
+                          name="requestorType"
+                          value="Facilitator"
+                          checked={requestorType === "Facilitator"}
+                          onChange={(e) => {
+                            setRequestorType(e.target.value);
+                            setErrors({ ...errors, requestorType: "" });
+                          }}
+                          className="w-4 h-4 accent-blue-500"
+                        />
+                        <span className="text-base">Facilitator</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        {" "}
+                        {/* slightly bigger gap */}
+                        <input
+                          type="radio"
+                          name="requestorType"
+                          value="Applicant"
+                          checked={requestorType === "Applicant"}
+                          onChange={(e) => {
+                            setRequestorType(e.target.value);
+                            setErrors({ ...errors, requestorType: "" });
+                          }}
+                          className="w-4 h-4 accent-blue-500"
+                        />
+                        <span className="text-base">Applicant</span>
+                      </label>
+                    </div>
+
+                    {errors.requestorType && (
+                      <p className="text-red-500 text-sm mt-1 text-center">
+                        {errors.requestorType}
+                      </p>
+                    )}
+
+                    {requestorType === "Facilitator" && (
+                      <p className="text-blue-600 text-sm mt-2 text-center">
+                        You won't be included in the Applicant List once
+                        approved but you can manage it.
+                      </p>
+                    )}
+
+                    {requestorType === "Applicant" && (
+                      <p className="text-green-600 text-sm mt-2 text-center">
+                        You will be included in the Applicant List once approved
+                        and can participate in the program.
+                      </p>
+                    )}
+                  </div>
+
                   {/* Visibility */}
                   <div>
                     <label className="block text-lg font-medium mb-2">
@@ -738,17 +856,32 @@ export default function RequestProgram({ userId }) {
                   Submitted Training Requests
                 </h1>
 
+                {/* Filter Dropdown */}
+                <div className="mb-4">
+                  <label className="mr-2 text-sm">Filter by Status:</label>
+                  <select
+                    className="p-2 border rounded"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option value="Approved">Approved</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
+                </div>
+
+                {/* Loading and Empty State */}
                 {loading ? (
                   <p className="text-gray-600 text-center">
                     Loading requests...
                   </p>
-                ) : submittedRequests.length === 0 ? (
+                ) : filteredRequests.length === 0 ? (
                   <p className="text-gray-600 text-center">
                     No requests available.
                   </p>
                 ) : (
                   <div className="space-y-4">
-                    {submittedRequests.map((request) => (
+                    {filteredRequests.map((request) => (
                       <div
                         key={request.id}
                         className="p-5 bg-white border border-gray-300 rounded-lg shadow-md hover:shadow-lg transition-all"
@@ -771,49 +904,28 @@ export default function RequestProgram({ userId }) {
                           </span>
                         </div>
 
-                        {/* Request Details */}
-                        {request.start_date && request.end_date ? (
-                          <>
-                            <p className="text-gray-700 mt-2">
-                              <strong>Start Date:</strong>{" "}
-                              {request.start_date?.seconds
-                                ? new Date(
-                                    request.start_date.seconds * 1000
-                                  ).toLocaleDateString()
-                                : "N/A"}
-                            </p>
-                            <p className="text-gray-700">
-                              <strong>End Date:</strong>{" "}
-                              {request.end_date?.seconds
-                                ? new Date(
-                                    request.end_date.seconds * 1000
-                                  ).toLocaleDateString()
-                                : "N/A"}
-                            </p>
-                          </>
-                        ) : (
-                          <div className="text-gray-700 mt-2">
-                            <strong>Selected Dates:</strong>
-                            <ul className="list-disc list-inside">
-                              {request.selected_dates &&
-                              request.selected_dates.length > 0 ? (
-                                request.selected_dates.map((date, index) => (
-                                  <li key={index}>
-                                    {date.seconds
-                                      ? new Date(
-                                          date.seconds * 1000
-                                        ).toLocaleDateString()
-                                      : "N/A"}
-                                  </li>
-                                ))
-                              ) : (
-                                <li>No selected dates available</li>
-                              )}
-                            </ul>
-                          </div>
-                        )}
+                        {/* Request Dates */}
+                        <div className="mt-2 text-gray-700">
+                          <p>
+                            <strong>Start Date:</strong>{" "}
+                            {request.start_date?.seconds
+                              ? new Date(
+                                  request.start_date.seconds * 1000
+                                ).toLocaleDateString()
+                              : "N/A"}
+                          </p>
+                          <p>
+                            <strong>End Date:</strong>{" "}
+                            {request.end_date?.seconds
+                              ? new Date(
+                                  request.end_date.seconds * 1000
+                                ).toLocaleDateString()
+                              : "N/A"}
+                          </p>
+                        </div>
 
-                        <p className="text-gray-700">
+                        {/* Venue and Participants */}
+                        <p className="text-gray-700 mt-2">
                           <strong>Venue:</strong> {request.venue}
                         </p>
                         <p className="text-gray-700">
@@ -821,19 +933,7 @@ export default function RequestProgram({ userId }) {
                           {request.num_participants}
                         </p>
 
-                        {/* Participant Emails */}
-                        <div className="mt-3">
-                          <h3 className="text-sm font-semibold text-gray-600">
-                            Participant Emails:
-                          </h3>
-                          <ul className="text-gray-600 text-sm">
-                            {request.emails.map((email, index) => (
-                              <li key={index}>- {email}</li>
-                            ))}
-                          </ul>
-                        </div>
-
-                        {/* Display Rejection Reason if Rejected */}
+                        {/* Rejection Reason if Status is Rejected */}
                         {request.status === "Rejected" &&
                           request.rejection_reason && (
                             <div className="mt-3 p-3 bg-red-100 border-l-4 border-red-500 rounded">

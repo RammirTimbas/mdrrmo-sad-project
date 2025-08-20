@@ -1,135 +1,150 @@
-
 .login-form-container {
-    position: fixed; /* Make sure it overlays */
-    top: 50%; /* Center it vertically */
-    left: 50%; /* Center it horizontally */
-    transform: translate(-50%, -50%); /* Offset for centering */
-    background: rgba(255, 255, 255, 0.9); /* Light background with some transparency */
-    padding: 20px;
-    border-radius: 8px; /* Rounded corners */
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); /* Shadow for depth */
-    z-index: 1000; /* Ensure it is above the overlay */
-  }
-  
-  .login-form {
-    background: white; /* White background for the form */
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    width: 300px; /* Set a fixed width */
-    position: relative; /* Positioning for the close icon */
-  }
-  
-  .close-icon {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    cursor: pointer;
-    font-size: 24px;
-  }
-  
-  .close-icon:hover {
-    color: red; /* Change color on hover */
-  }
-  
-  h2 {
-    text-align: center; /* Center the title */
-    margin-bottom: 20px; /* Space below title */
-  }
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
 
-  .txt-1{
-    font-size: 14px;
-  }
 
-  label {
-    display: block; /* Block display for labels */
-    margin-bottom: 5px; /* Space below each label */
-    text-align: left; /* Align text to the left */
-  }
-  
-  input {
-    width: 100%; /* Full width for inputs */
-    padding: 10px; /* Padding for inputs */
-    margin-bottom: 15px; /* Space below inputs */
-    border: 1px solid #ccc; /* Light border */
-    border-radius: 4px; /* Rounded corners */
-  }
-  
-  .submit-button {
-    background-color: #007bff; /* Green background */
-    color: white; /* White text */
-    border: none; /* No border */
-    padding: 10px; /* Padding */
-    border-radius: 4px; /* Rounded corners */
-    cursor: pointer; /* Pointer cursor */
-    width: 100%; /* Full width */
-  }
-  
-  .submit-button:hover {
-    background-color: lightblue; /* Darker green on hover */
-  }
-  
-  .no-account {
-    text-align: center; /* Center the "No account?" text */
-    margin-top: 10px; /* Space above the text */
-    cursor: pointer; /* Pointer cursor for clickable text */
-    color: white; /* Link color */
-  }
 
-  .forgot-password {
-    text-align:end; /* Center the "No account?" text */
-    margin-top: 10px; /* Space above the text */
-    cursor: pointer; /* Pointer cursor for clickable text */
-    color: #007bff; /* Link color */
-    font-size: 12px;
-  }
-  
-  .no-account:hover {
-    text-decoration: underline; /* Underline on hover */
-  }
-  
-  .error-message {
-    color: red; /* Error message color */
-    text-align: center;
-  }
+.login-form {
+  background: white; /* White background for the form */
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  width: 300px; /* Set a fixed width */
+  position: relative; /* Positioning for the close icon */
+}
 
-  .form {
-    transition: transform 0.4s ease;
-    /* Use transform for the sliding effect */
-  }
-  
-  
-  /* Adjust the tab-container button styles if necessary */
-  .tab-container {
-    display: flex;
-    justify-content: center;
-    margin: 20px 0;
-    border-bottom: 2px solid #e0e0e0;
-    width: 100%;
-  }
-  
-  .tab-container button {
-    padding: 12px 20px;
-    font-size: 16px;
-    font-weight: 500;
-    color: #555;
-    cursor: pointer;
-    transition: color 0.3s, background-color 0.3s;
-    text-align: center;
-    position: relative;
-    flex: 1;
-    background: none;
-    border: none;
-    border-bottom: 3px solid transparent;
-  }
-  
-  .tab-container button:hover {
-    color: #007BFF;
-  }
-  
-  .tab-container .active-tab {
-    color: #007BFF;
-    font-weight: 600;
-    border-bottom: 3px solid #007BFF;
-  }
-  
+.close-icon {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  cursor: pointer;
+  font-size: 24px;
+}
+
+.close-icon:hover {
+  color: red; /* Change color on hover */
+}
+
+h2 {
+  text-align: center; /* Center the title */
+  margin-bottom: 20px; /* Space below title */
+}
+
+.txt-1 {
+  font-size: 14px;
+}
+
+label {
+  display: block; /* Block display for labels */
+  margin-bottom: 5px; /* Space below each label */
+  text-align: left; /* Align text to the left */
+}
+
+input {
+  width: 100%; /* Full width for inputs */
+  padding: 10px; /* Padding for inputs */
+  margin-bottom: 15px; /* Space below inputs */
+  border: 1px solid #ccc; /* Light border */
+  border-radius: 4px; /* Rounded corners */
+}
+
+.submit-button {
+  background-color: #007bff; /* Green background */
+  color: white; /* White text */
+  border: none; /* No border */
+  padding: 10px; /* Padding */
+  border-radius: 4px; /* Rounded corners */
+  cursor: pointer; /* Pointer cursor */
+  width: 100%; /* Full width */
+}
+
+.submit-button:hover {
+  background-color: lightblue; /* Darker green on hover */
+}
+
+.no-account {
+  text-align: center; /* Center the "No account?" text */
+  margin-top: 10px; /* Space above the text */
+  cursor: pointer; /* Pointer cursor for clickable text */
+  color: white; /* Link color */
+}
+
+.forgot-password {
+  text-align: end; /* Center the "No account?" text */
+  margin-top: 10px; /* Space above the text */
+  cursor: pointer; /* Pointer cursor for clickable text */
+  color: #007bff; /* Link color */
+  font-size: 12px;
+}
+
+.no-account:hover {
+  text-decoration: underline; /* Underline on hover */
+}
+
+.error-message {
+  color: red; /* Error message color */
+  text-align: center;
+}
+
+.form {
+  transition: transform 0.4s ease;
+  /* Use transform for the sliding effect */
+}
+
+/* Adjust the tab-container button styles if necessary */
+.tab-container {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+  border-bottom: 2px solid #e0e0e0;
+  width: 100%;
+}
+
+.tab-container button {
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  transition: color 0.3s, background-color 0.3s;
+  text-align: center;
+  position: relative;
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+}
+
+.tab-container button:hover {
+  color: #007bff;
+}
+
+.tab-container .active-tab {
+  color: #007bff;
+  font-weight: 600;
+  border-bottom: 3px solid #007bff;
+}
+
+.overlay-login-form {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4); /* Dark backdrop */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5); /* Add shadow to the backdrop */
+}
+
+.no-scroll {
+  overflow: hidden;
+}
+
+

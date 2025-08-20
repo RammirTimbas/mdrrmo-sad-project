@@ -27,6 +27,14 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
 import Swal from "sweetalert2";
+import {
+  FaCalendarAlt,
+  FaMapMarkerAlt,
+  FaChalkboardTeacher,
+  FaListUl,
+  FaRegClock,
+  FaClipboardList,
+} from "react-icons/fa";
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -45,6 +53,7 @@ const ProgramDetails = ({ userId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false); // For the modal visibility
   const [initialProgramDetails, setInitialProgramDetails] =
     useState(programDetails);
+  const [showMore, setShowMore] = useState(false);
 
   const [activeTab, setActiveTab] = useState("approved"); // default tab
 
@@ -57,6 +66,7 @@ const ProgramDetails = ({ userId }) => {
   const [userRole, setUserRole] = useState(null);
 
   const [requestorId, setRequestorId] = useState(null);
+  const [requestorType, setRequestorType] = useState(null);
   const [shareCode, setShareCode] = useState(null);
   const [batchCode, setBatchCode] = useState(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -92,6 +102,8 @@ const ProgramDetails = ({ userId }) => {
 
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -648,7 +660,7 @@ const ProgramDetails = ({ userId }) => {
       if (scannedDate !== today) {
         Swal.fire(
           "Error",
-          `Invalid QR Code for Today. Expected: ${today}, Scanned: ${scannedDate}`,
+          `Invalid QR Code for Today.`,
           "error"
         );
         return;
@@ -863,6 +875,7 @@ const ProgramDetails = ({ userId }) => {
             const approved = programData.approved_applicants || {};
 
             setRequestorId(programData.requestor_id || null);
+            setRequestorType(programData.requestor_type || null);
             setShareCode(programData.share_code || null);
             setBatchCode(programData.batchCode || null);
 
@@ -955,6 +968,7 @@ const ProgramDetails = ({ userId }) => {
     if (!result.isConfirmed) return;
 
     try {
+      setIsLoading(true);
       // IMPORTANT: check if there is slot available
       const programRef = doc(db, "Training Programs", program.id);
       const programSnapshot = await getDoc(programRef);
@@ -1085,6 +1099,8 @@ const ProgramDetails = ({ userId }) => {
         "Error applying for the program: " + error.message,
         "error"
       );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -1197,139 +1213,230 @@ const ProgramDetails = ({ userId }) => {
     });
   };
 
+  // Assuming start_time is in 24-hour format (e.g., "08:00")
+  const formatTime = (time) => {
+    if (!time) {
+      return;
+    }
+    try {
+      const [hours, minutes] = time.split(":");
+      const date = new Date();
+      date.setHours(hours, minutes);
+
+      // Convert time to 12-hour format with AM/PM
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
   return (
     <div className="program-details-fullscreen">
       <div className="program-details-content">
         <div className="program-header">
-          <h1 className="details-title">{programDetails.program_title}</h1>
+          <div className="back-button-container">
+            <button
+              className="back-button bg-transparent text-red-500"
+              onClick={() => navigate(-1)}
+            >
+              ← Back
+            </button>
+          </div>
+          <h1 className="details-title text-2xl font-semibold text-gray-800 mt-4">
+            {programDetails.program_title}
+          </h1>
+
+          {/* Program Details Container */}
+          <div className="flex flex-col lg:flex-row gap-6 p-6 bg-white shadow-lg rounded-xl">
+            {/* Thumbnail Section */}
+            <div
+              className={`w-full mb-4 lg:w-1/3 transition-all duration-500 ${
+                showMore ? "h-auto" : "h-80"
+              }`}
+            >
+              <img
+                src={programDetails.thumbnail}
+                alt={programDetails.program_title}
+                className="w-full h-full object-cover rounded-lg border"
+              />
+            </div>
+
+            {/* Details Section */}
+            <div className="w-full lg:w-2/3 space-y-4 text-sm sm:text-base text-gray-700">
+              <div className="flex items-center gap-2">
+                <strong className="text-xl">
+                  {programDetails.program_title}
+                </strong>
+              </div>
+
+              {/* Program Description */}
+              <div className="text-gray-600">
+                <strong>Description:</strong> {programDetails.description}
+              </div>
+
+              {/* See More Button */}
+              <button
+                onClick={() => setShowMore(!showMore)}
+                className="bg-transparent text-blue-600 font-semibold mt-2 flex items-center gap-2"
+              >
+                <FaListUl />
+                {showMore ? "See Less..." : "See More..."}
+              </button>
+
+              {/* Conditional rendering for the rest of the details */}
+              <div
+                className={`transition-all duration-500 overflow-hidden ${
+                  showMore ? "max-h-screen" : "max-h-0"
+                }`}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <FaMapMarkerAlt className="text-gray-500" />
+                    <strong>Venue:</strong>{" "}
+                    {programDetails.program_venue || "TBA"}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <FaChalkboardTeacher className="text-gray-500" />
+                    <strong>Trainer:</strong> {programDetails.trainer_assigned}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <strong>Type:</strong> {programDetails.type}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <FaClipboardList className="text-gray-500" />
+                    <strong>Slots Left:</strong> {programDetails.slots}
+                  </div>
+
+                  {programDetails.selected_dates?.length > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <FaCalendarAlt className="text-gray-500" />
+                      <strong>Dates:</strong>{" "}
+                      {programDetails.selected_dates
+                        .map((date) =>
+                          new Date(date.seconds * 1000).toLocaleDateString(
+                            "en-US",
+                            {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            }
+                          )
+                        )
+                        .join(", ")}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <FaCalendarAlt className="text-gray-500" />
+                        <strong>Start Date:</strong>{" "}
+                        {programDetails.start_date
+                          ? new Date(
+                              programDetails.start_date * 1000
+                            ).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })
+                          : "N/A"}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <FaCalendarAlt className="text-gray-500" />
+                        <strong>End Date:</strong>{" "}
+                        {programDetails.end_date
+                          ? new Date(
+                              programDetails.end_date * 1000
+                            ).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })
+                          : "N/A"}
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <FaRegClock className="text-gray-500" />
+                    <strong>Time:</strong>{" "}
+                    {formatTime(programDetails.start_time) || "Not specified"}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <strong>Requirements:</strong>
+                    <ul className="list-disc list-inside pl-6">
+                      {requirements.length > 0 ? (
+                        requirements.map((requirement, index) => (
+                          <li key={index}>{requirement.trim()}</li>
+                        ))
+                      ) : (
+                        <li>None</li>
+                      )}
+                    </ul>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <strong>Materials Needed:</strong>{" "}
+                    {programDetails.materials_needed}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <strong>Minimum Age:</strong>{" "}
+                    {programDetails.restriction || "None"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="program-body">
-          <div className="thumbnail-container2">
-            <img
-              src={programDetails.thumbnail}
-              alt={programDetails.program_title}
-              className="program-thumbnail2"
-            />
-          </div>
-          <div className="details-section">
-            <p>
-              <strong>Description:</strong> {programDetails.description}
-            </p>
-            <p>
-              <strong>Venue:</strong> {programDetails.program_venue || "Tba"}
-            </p>
-            <p>
-              <strong>Type:</strong> {programDetails.type}
-            </p>
-            <p>
-              <strong>Trainer:</strong> {programDetails.trainer_assigned}
-            </p>
-            <p>
-              <strong>Slots Left:</strong> {programDetails.slots}
-            </p>
-            {programDetails.selected_dates?.length > 0 ? (
-              <p>
-                <strong>Dates:</strong>{" "}
-                {programDetails.selected_dates
-                  .map((date) =>
-                    new Date(date.seconds * 1000).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })
-                  )
-                  .join(", ")}
-              </p>
-            ) : (
-              <>
-                <p>
-                  <strong>Start Date:</strong>{" "}
-                  {programDetails.start_date
-                    ? new Date(
-                        programDetails.start_date * 1000
-                      ).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })
-                    : "N/A"}
-                </p>
-                <p>
-                  <strong>End Date:</strong>{" "}
-                  {programDetails.end_date
-                    ? new Date(
-                        programDetails.end_date * 1000
-                      ).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })
-                    : "N/A"}
-                </p>
-              </>
-            )}
-            <p>
-              <strong>Requirements:</strong>
-            </p>
-            <ul>
-              {requirements.length > 0 ? (
-                requirements.map((requirement, index) => (
-                  <li key={index}>{requirement.trim()}</li>
-                ))
-              ) : (
-                <li>None</li>
-              )}
-            </ul>
-            <p>
-              <strong>Materials Needed:</strong>{" "}
-              {programDetails.materials_needed}
-            </p>
-            <p>
-              <strong>Minimum Age:</strong>{" "}
-              {programDetails.restriction || "None"}
-            </p>
-          </div>
-        </div>
-
-        <div className="program-actions">
+        {/* Actions */}
+        <div className="flex flex-wrap gap-3 mt-6">
           {userRole === "user" && (
-            <div className="program-actions">
+            <>
               {!isProgramCompleted && isUserApproved && (
                 <button
-                  className="scan-qr-button"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow"
                   onClick={handleMarkAttendance}
                 >
                   Mark Attendance
                 </button>
               )}
-
-              {!isProgramCompleted && !isUserApproved && (
-                <>
-                  <button className="apply-button" onClick={handleApply}>
-                    Apply Now
-                  </button>
-                  <button
-                    className="upload-button"
-                    onClick={() => setShowUploadModal(true)}
-                    disabled={requirements.length === 0}
-                  >
-                    Upload Requirements
-                  </button>
-                </>
-              )}
-
+              {!isProgramCompleted &&
+                !isUserApproved &&
+                requestorType?.toLowerCase() !== "facilitator" && (
+                  <>
+                    <button
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow"
+                      onClick={handleApply}
+                    >
+                      Apply Now
+                    </button>
+                    <button
+                      className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg shadow disabled:opacity-50"
+                      onClick={() => setShowUploadModal(true)}
+                      disabled={requirements.length === 0}
+                    >
+                      Upload Requirements
+                    </button>
+                  </>
+                )}
               {isUserRequestor && (
                 <>
                   <button
-                    className="inv-button"
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg shadow"
                     onClick={() => setIsInviteModalOpen(true)}
                   >
                     Invite Participants
                   </button>
-
                   <button
-                    className="share-button"
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow flex items-center"
                     onClick={copyShareCodeToClipboard}
                   >
                     <FaClipboard className="mr-2" />
@@ -1337,26 +1444,30 @@ const ProgramDetails = ({ userId }) => {
                   </button>
                 </>
               )}
-            </div>
+            </>
           )}
+
           {userRole === "trainer" && (
-            <button className="show-qr-button" onClick={handleShowQR}>
+            <button
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow"
+              onClick={handleShowQR}
+            >
               Show QR Code
             </button>
           )}
+
           {userRole === "admin" && (
             <>
               <button
-                className="show-qr-button"
+                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg shadow"
                 onClick={() => {
-                  // check if the program has started or ended
                   if (
                     programDetails.start_date <= Date.now() / 1000 ||
                     programDetails.end_date <= Date.now() / 1000
                   ) {
                     Swal.fire({
                       title: "Cannot Edit Program",
-                      text: "This program has already started or ended, so its details cannot be edited.",
+                      text: "This program has already started or ended.",
                       icon: "warning",
                       confirmButtonText: "OK",
                     });
@@ -1367,7 +1478,10 @@ const ProgramDetails = ({ userId }) => {
               >
                 Edit Details
               </button>
-              <button className="delete-button" onClick={() => checkDelete()}>
+              <button
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow"
+                onClick={checkDelete}
+              >
                 Delete
               </button>
             </>
@@ -1384,47 +1498,30 @@ const ProgramDetails = ({ userId }) => {
               Approved Applicants
             </div>
 
-            {userRole === "user" ? (
-              <div
-                className={`tab ${activeTab === "attendance" ? "active" : ""} ${
-                  !(
-                    isUserApproved ||
-                    userRole === "admin" ||
-                    userRole === "trainer"
-                  )
-                    ? "disabled"
-                    : ""
-                }`}
-                onClick={() =>
-                  (isUserApproved ||
-                    userRole === "admin" ||
-                    userRole === "trainer") &&
-                  setActiveTab("attendance")
-                }
-              >
-                Your Attendance
-              </div>
-            ) : (
-              <div
-                className={`tab ${activeTab === "attendance" ? "active" : ""} ${
-                  !(
-                    isUserApproved ||
-                    userRole === "admin" ||
-                    userRole === "trainer"
-                  )
-                    ? "disabled"
-                    : ""
-                }`}
-                onClick={() =>
-                  (isUserApproved ||
-                    userRole === "admin" ||
-                    userRole === "trainer") &&
-                  setActiveTab("attendance")
-                }
-              >
-                Attendance
-              </div>
-            )}
+            <div
+              className={`tab ${activeTab === "attendance" ? "active" : ""} ${
+                !(
+                  isUserApproved ||
+                  userRole === "admin" ||
+                  userRole === "trainer" ||
+                  requestorType?.toLowerCase() === "facilitator"
+                )
+                  ? "disabled"
+                  : ""
+              }`}
+              onClick={() =>
+                (isUserApproved ||
+                  userRole === "admin" ||
+                  userRole === "trainer" ||
+                  requestorType?.toLowerCase() === "facilitator") &&
+                setActiveTab("attendance")
+              }
+            >
+              {userRole === "user" &&
+              requestorType?.toLowerCase() !== "facilitator"
+                ? "Your Attendance"
+                : "Attendance"}
+            </div>
           </div>
 
           {/* Tab Content */}
@@ -1432,39 +1529,59 @@ const ProgramDetails = ({ userId }) => {
             {(userRole === "user" || userRole === "trainer") && (
               <>
                 {activeTab === "approved" && (
-                  <div className="table-container">
-                    <div className="approved-applicants">
-                      <h2>Approved Applicants</h2>
+                  <div className="bg-gray-50">
+                    <div className="bg-white shadow-lg rounded-lg p-6">
                       {approvedApplicants.length > 0 ? (
-                        <table className="applicants-table">
-                          <thead>
-                            <tr>
-                              <th>Full Name</th>
-                              <th>Gender</th>
-                              <th>School Agency</th>
-                              <th>Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {approvedApplicants
-                              .slice() // ✅ Create a copy before sorting to avoid modifying state directly
-                              .sort((a, b) =>
-                                a.full_name.localeCompare(b.full_name)
-                              ) // ✅ Sort alphabetically
-                              .map((applicant) => (
-                                <tr
-                                  key={`${applicant.user_id}_${applicant.program_id}`}
-                                >
-                                  <td>{applicant.full_name}</td>
-                                  <td>{applicant.gender}</td>
-                                  <td>{applicant.school_agency}</td>
-                                  <td>{applicant.status}</td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full table-auto border-collapse">
+                            <thead className="bg-gray-100">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                                  Full Name
+                                </th>
+                                <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                                  Gender
+                                </th>
+                                <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                                  School Agency
+                                </th>
+                                <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                                  Status
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {approvedApplicants
+                                .slice() // ✅ Create a copy before sorting to avoid modifying state directly
+                                .sort((a, b) =>
+                                  a.full_name.localeCompare(b.full_name)
+                                ) // ✅ Sort alphabetically
+                                .map((applicant) => (
+                                  <tr
+                                    key={`${applicant.user_id}_${applicant.program_id}`}
+                                    className="border-b border-gray-200 hover:bg-gray-50"
+                                  >
+                                    <td className="px-4 py-3 text-sm text-gray-800">
+                                      {applicant.full_name}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-gray-800">
+                                      {applicant.gender}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-gray-800">
+                                      {applicant.school_agency}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-gray-800">
+                                      {applicant.status}
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
                       ) : (
-                        <p>No approved applicants found for this program.</p>
+                        <p className="text-gray-600">
+                          No approved applicants found for this program.
+                        </p>
                       )}
                     </div>
                   </div>
@@ -1793,7 +1910,6 @@ const ProgramDetails = ({ userId }) => {
             <div className="qr-code-container">
               <h3>
                 Scan QR Code for Attendance Code:{" "}
-                {`${program.id}-${formattedRelevantDate}`}
               </h3>
               <p>{relevantDate.toDateString()}</p>
               <QRCodeCanvas
@@ -2096,6 +2212,18 @@ const ProgramDetails = ({ userId }) => {
           </div>
         )}
       </div>
+
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-999">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+            <h2 className="text-xl font-semibold mb-2">Loading...</h2>
+            <p className="text-gray-600">
+              This could take a while, sip a coffee first ☕
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

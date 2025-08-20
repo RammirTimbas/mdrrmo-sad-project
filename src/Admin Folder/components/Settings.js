@@ -288,11 +288,13 @@ const Settings = ({ userId }) => {
 
   const filteredLogs = logs
     .filter((log) => {
-      return (
-        log.name.toLowerCase().includes(filter.toLowerCase()) ||
-        log.type.toLowerCase().includes(filter.toLowerCase()) ||
-        log.action.toLowerCase().includes(filter.toLowerCase())
-      );
+      if (log.name && log.type && log.action) {
+        return (
+          log.name.toLowerCase().includes(filter.toLowerCase()) ||
+          log.type.toLowerCase().includes(filter.toLowerCase()) ||
+          log.action.toLowerCase().includes(filter.toLowerCase())
+        );
+      }
     })
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -679,7 +681,7 @@ const Settings = ({ userId }) => {
             </div>
           </div>
 
-          <PopulationConfig/>
+          <PopulationConfig />
 
           {/* Training Materials Upload */}
           <div className="p-6 bg-white shadow-md rounded-lg">

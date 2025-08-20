@@ -9,6 +9,7 @@ import {
   addDoc,
   deleteDoc,
   getDoc,
+  onSnapshot,
 } from "firebase/firestore";
 
 import noItem from "./logo/no_items.png";
@@ -32,6 +33,8 @@ const Registrants = ({ userId }) => {
   const [uniqueSchools, setUniqueSchools] = useState([]);
   const [adminName, setAdminName] = useState("Admin");
   const [loading, setLoading] = useState(true);
+
+  const [isLoading, setIsLoading] = useState(false);
 
   const [filters, setFilters] = useState({
     civil_status: "",
@@ -60,18 +63,19 @@ const Registrants = ({ userId }) => {
   }, [userId]);
 
   useEffect(() => {
-    const fetchRegistrants = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "Registrants"));
+    const unsubscribe = onSnapshot(
+      collection(db, "Registrants"),
+      (querySnapshot) => {
         const registrantsData = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
 
-        // filter out only those registrants whose status is 'pending'
+        // Filter out only those registrants whose status is 'pending'
         const pendingRegistrants = registrantsData.filter(
           (registrant) => registrant.status === "pending"
         );
+
         setRegistrants(pendingRegistrants);
         setFilteredRegistrants(pendingRegistrants);
         setLoading(false);
@@ -89,15 +93,18 @@ const Registrants = ({ userId }) => {
         setUniqueBarangays(barangays);
         setUniqueReligions(religions);
         setUniqueSchools(schools);
-      } catch (error) {
+      },
+      (error) => {
         Swal.fire(
           "Error",
           "Error fetching registrants: " + error.message,
           "error"
         );
+        setLoading(false);
       }
-    };
-    fetchRegistrants();
+    );
+
+    return () => unsubscribe();
   }, []);
 
   //generate 8 character password
@@ -144,6 +151,7 @@ const Registrants = ({ userId }) => {
   };
 
   const confirmActionHandler = async (action, registrant) => {
+    setIsLoading(true);
     if (action === "approve") {
       const newPassword = generateRandomPassword();
 
@@ -217,6 +225,7 @@ const Registrants = ({ userId }) => {
         date: new Date(),
       });
     }
+    setIsLoading(false);
   };
 
   const handleFilterChange = (e) => {
@@ -459,80 +468,71 @@ const Registrants = ({ userId }) => {
           </p>
         </div>
       ) : filteredRegistrants.length > 0 ? (
-        <div className="scrollable-table">
-          <table className="registrants-table">
+        <div className="scrollable-table max-h-[500px] overflow-y-auto rounded-lg shadow-lg">
+          <table className="registrants-table w-full table-auto text-sm text-gray-700">
             <thead>
-              <tr>
-                <th>Full Name</th>
-                <th>Age</th>
-                <th>Gender</th>
-                <th>Civil Status</th>
-                <th>Religion</th>
-                <th>Barangay</th>
-                <th>Municipality</th>
-                <th>Province</th>
-                <th>Mobile No</th>
-                <th>Email</th>
-                <th>School/Agency</th>
-                <th>CRF</th>
-                <th>Action</th>
+              <tr className="bg-gray-200 text-left text-xs uppercase tracking-wider">
+                <th className="px-4 py-3 border-b">Full Name</th>
+                <th className="px-4 py-3 border-b">Age</th>
+                <th className="px-4 py-3 border-b">Gender</th>
+                <th className="px-4 py-3 border-b">Civil Status</th>
+                <th className="px-4 py-3 border-b">Religion</th>
+                <th className="px-4 py-3 border-b">Barangay</th>
+                <th className="px-4 py-3 border-b">Municipality</th>
+                <th className="px-4 py-3 border-b">Province</th>
+                <th className="px-4 py-3 border-b">Mobile No</th>
+                <th className="px-4 py-3 border-b">Email</th>
+                <th className="px-4 py-3 border-b">School/Agency</th>
+                <th className="px-4 py-3 border-b">CRF</th>
+                <th className="px-4 py-3 border-b">Action</th>
               </tr>
             </thead>
             <tbody>
               {currentRegistrants.map((registrant, index) => (
                 <tr
                   key={registrant.id}
-                  className={`border-b ${
-                    index % 2 === 0 ? "bg-gray-50" : ""
-                  } hover:bg-gray-100`}
+                  className={`border-b hover:bg-gray-50 transition-all duration-300 ease-in-out ${
+                    index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                  }`}
                 >
-                  <td>{registrant.full_name}</td>
-                  <td>{registrant.age}</td>
-                  <td>{registrant.gender}</td>
-                  <td>{registrant.civil_status}</td>
-                  <td>{registrant.religion}</td>
-                  <td>{registrant.barangay}</td>
-                  <td>{registrant.municipality}</td>
-                  <td>{registrant.province}</td>
-                  <td>{registrant.mobile_number}</td>
-                  <td>{registrant.email}</td>
-                  <td>{registrant.school_agency}</td>
-                  <td>
+                  <td className="px-4 py-3">{registrant.full_name}</td>
+                  <td className="px-4 py-3">{registrant.age}</td>
+                  <td className="px-4 py-3">{registrant.gender}</td>
+                  <td className="px-4 py-3">{registrant.civil_status}</td>
+                  <td className="px-4 py-3">{registrant.religion}</td>
+                  <td className="px-4 py-3">{registrant.barangay}</td>
+                  <td className="px-4 py-3">{registrant.municipality}</td>
+                  <td className="px-4 py-3">{registrant.province}</td>
+                  <td className="px-4 py-3">{registrant.mobile_number}</td>
+                  <td className="px-4 py-3">{registrant.email}</td>
+                  <td className="px-4 py-3">{registrant.school_agency}</td>
+                  <td className="px-4 py-3">
                     {registrant.crf ? (
-                      <span style={{ display: "flex", alignItems: "center" }}>
-                        {/* Extract and display the filename */}
-                        <span style={{ marginRight: "8px" }}>
+                      <span className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-600">
                           {registrant.crf.split("/").pop().split("?")[0]}
                         </span>
                         <button
                           onClick={() => window.open(registrant.crf, "_blank")}
-                          className="view-button"
-                          style={{
-                            padding: "4px 8px",
-                            backgroundColor: "#007bff",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                          }}
+                          className="text-xs text-white bg-blue-600 hover:bg-blue-700 py-1 px-2 rounded-lg"
                         >
                           View
                         </button>
                       </span>
                     ) : (
-                      <span>No CRF</span>
+                      <span className="text-xs text-gray-600">No CRF</span>
                     )}
                   </td>
-                  <td className="action-buttons">
+                  <td className="px-4 py-3 flex space-x-2">
                     <button
                       onClick={() => handleApprove(registrant)}
-                      className="approve-button"
+                      className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg shadow-md transition duration-200"
                     >
                       Approve
                     </button>
                     <button
                       onClick={() => handleReject(registrant)}
-                      className="reject-button"
+                      className="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg shadow-md transition duration-200"
                     >
                       Reject
                     </button>
@@ -580,6 +580,18 @@ const Registrants = ({ userId }) => {
           >
             Next
           </button>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+            <h2 className="text-xl font-semibold mb-2">Loading...</h2>
+            <p className="text-gray-600">
+              This could take a while, sip a coffee first ☕
+            </p>
+          </div>
         </div>
       )}
     </div>

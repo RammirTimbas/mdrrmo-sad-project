@@ -10,6 +10,18 @@ import {
 } from "react-router-dom";
 import mdrrmo_logo from "./mdrrmo_logo.png";
 import defaultLogo from "./placeholder_image.png";
+import {
+  FaSignOutAlt,
+  FaHome,
+  FaClipboardList,
+  FaPlusCircle,
+  FaBell,
+  FaUserCircle,
+  FaTools,
+  FaFacebookMessenger,
+} from "react-icons/fa";
+import Header from "../Header";
+
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
 const UserPanel = ({ userId, handleSignOut }) => {
@@ -120,65 +132,35 @@ const UserPanel = ({ userId, handleSignOut }) => {
     location.pathname.includes("/user/home/") ||
     location.pathname.includes("/user/training-programs/");
 
+  const handleLogout = () => {
+    closeSidebarOnNavLink();
+
+    handleSignOut();
+  };
+
   return (
     <div>
       <div className="UserPanel">
-        <header
-          className="header"
-          style={{ backgroundColor: headerBackground }}
-        >
-          {isProgramDetailsRoute ? (
-            <button className="hamburger" onClick={() => navigate(-1)}>
-              ←
-            </button>
-          ) : (
-            <button className="hamburger" onClick={toggleSidebar}>
-              ☰
-            </button>
-          )}
-          <img src={mdrrmo_logo} alt="Logo" className="logo" />
-          <h1 className="title">MDRRMO Training Program Management System</h1>
-          <h1 className="title-mobile">MDRRMO - TPMS</h1>
-
-          <nav
-            className={`header-nav ${
-              isProgramDetailsRoute ? "hidden-nav" : ""
-            }`}
-          >
-            <ul>
-              <li onClick={() => scrollToSection("carousel")} className="home">
-                <span className="desktop-text">Home</span>
-                <i className="fas fa-home mobile-icon"></i>
-              </li>
-              <li
-                onClick={() => scrollToSection("training-programs")}
-                className="training"
-              >
-                <span className="desktop-text">Training Programs</span>
-                <i className="fas fa-chalkboard-teacher mobile-icon"></i>
-              </li>
-              <li
-                onClick={() => scrollToSection("mission-vision")}
-                className="mission-vision"
-              >
-                <span className="desktop-text">Mission/Vision</span>
-                <i className="fas fa-bullseye mobile-icon"></i>
-              </li>
-            </ul>
-          </nav>
-        </header>
+        <Header
+          headerBackground={headerBackground}
+          handleInteraction={toggleSidebar}
+          scrollToSection={scrollToSection}
+          showLogin={false}
+        />
 
         <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-          <div className="sidebar-logo">
+          <div className="sidebar-logo flex flex-col items-center py-4">
             <img
               src={userInfo?.profile_picture || defaultLogo}
               alt="User Profile"
               className="profile-picture"
             />
-            <h2 className="greeting">
-              Welcome, {userInfo?.full_name || "User"}!
-            </h2>
+            <h2 className="greeting">Welcome, {userInfo?.full_name}!</h2>
+            <p className="text-xs text-gray-500 text-center mt-1">
+              {userInfo?.email || "email@example.com"}
+            </p>
           </div>
+
           <hr />
           <ul className="sidebar-nav">
             <NavLink
@@ -188,32 +170,52 @@ const UserPanel = ({ userId, handleSignOut }) => {
               }
               onClick={closeSidebarOnNavLink}
             >
-              <li>Home</li>
+              <li className="nav-item">
+                <FaHome className="nav-icon" />
+                <span className="nav-label">Home</span>
+              </li>
             </NavLink>
             <NavLink
               to="training-programs"
               className={({ isActive }) => (isActive ? "active" : "")}
               onClick={closeSidebarOnNavLink}
             >
-              <li>My Applications</li>
+              <li className="nav-item">
+                <FaClipboardList className="nav-icon" />
+                <span className="nav-label">My Applications</span>
+              </li>
             </NavLink>
             <NavLink
               to="request-program"
               className={({ isActive }) => (isActive ? "active" : "")}
               onClick={closeSidebarOnNavLink}
             >
-              <li>Request Program</li>
+              <li className="nav-item">
+                <FaPlusCircle className="nav-icon" />
+                <span className="nav-label">Request Program</span>
+              </li>
             </NavLink>
             <NavLink
               to="notifications"
               className={({ isActive }) => (isActive ? "active" : "")}
               onClick={closeSidebarOnNavLink}
             >
-              <li className="relative flex items-center">
-                <span>Notifications</span>
+              <li className="nav-item relative">
+                <FaBell className="nav-icon" />
+                <span className="nav-label">Notifications</span>
                 {hasUnread && (
-                  <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-blink"></span>
+                  <span className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-blink"></span>
                 )}
+              </li>
+            </NavLink>
+            <NavLink
+              to="chat"
+              className={({ isActive }) => (isActive ? "active" : "")}
+              onClick={closeSidebarOnNavLink}
+            >
+              <li className="nav-item relative">
+                <FaFacebookMessenger className="nav-icon" />
+                <span className="nav-label">Support</span>
               </li>
             </NavLink>
             <NavLink
@@ -221,11 +223,24 @@ const UserPanel = ({ userId, handleSignOut }) => {
               className={({ isActive }) => (isActive ? "active" : "")}
               onClick={closeSidebarOnNavLink}
             >
-              <li>Profile</li>
+              <li className="nav-item">
+                <FaTools className="nav-icon" />
+                <span className="nav-label">Settings</span>
+              </li>
+            </NavLink>
+            <NavLink
+              to="/"
+              className={({ isActive }) => (isActive ? "active" : "")}
+              onClick={handleLogout}
+            >
+              <li className="nav-item text-red-500">
+                <FaSignOutAlt className="nav-icon text-red-500" />
+                <span className="nav-label text-red-500">Logout</span>
+              </li>
             </NavLink>
           </ul>
+
           <div className="sidebar-footer">
-            <button onClick={handleSignOut}>Sign Out</button>
             <p>&copy; {new Date().getFullYear()}</p>
           </div>
         </div>

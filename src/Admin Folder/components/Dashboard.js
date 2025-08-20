@@ -22,6 +22,9 @@ import Swal from "sweetalert2";
 import CompletedApplicantsMap from "./CompletedApplicantsMap";
 import Lottie from "lottie-react";
 import MainLoading from "../../lottie-files-anim/loading-main.json";
+import SubLoading from "../../lottie-files-anim/sub-loading.json";
+import EventOverview from "./EventOverview";
+import { HiChartBar, HiDocumentReport, HiLightBulb, HiCalendar } from 'react-icons/hi';
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -41,6 +44,13 @@ const Dashboard = () => {
   const [annualQuota, setAnnualQuota] = useState(0);
   const [monthlyCompleted, setMonthlyCompleted] = useState(0);
   const [annualCompleted, setAnnualCompleted] = useState(0);
+
+  const [programData, setProgramData] = useState([]);
+  const [programDataLoading, setProgramDataLoading] = useState(false);
+  const [timeFilter, setTimeFilter] = useState("monthly");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const canvasRef = useRef(null);
 
@@ -70,6 +80,42 @@ const Dashboard = () => {
     { length: 10 }, // Past 5 years + Future 5 years
     (_, i) => today.getFullYear() - 5 + i
   );
+
+  const [stopWords, setStopWords] = useState(new Set());
+
+  useEffect(() => {
+    const initializeProgramData = async () => {
+      setProgramDataLoading(true);
+      const data = await fetchTrainingReportData(timeFilter);
+      setProgramData(data);
+      setProgramDataLoading(false);
+    };
+    initializeProgramData();
+  }, [selectedDate]);
+
+  useEffect(() => {
+    const fetchStopWords = async () => {
+      const [en, tl] = await Promise.all([
+        fetch(
+          "https://raw.githubusercontent.com/stopwords-iso/stopwords-en/master/stopwords-en.json"
+        ).then((res) => res.json()),
+        fetch(
+          "https://raw.githubusercontent.com/stopwords-iso/stopwords-tl/master/stopwords-tl.json"
+        ).then((res) => res.json()),
+      ]);
+      setStopWords(new Set([...en, ...tl]));
+    };
+
+    fetchStopWords();
+  }, []);
+
+  const handleTimeFilterChange = async (filter) => {
+    setTimeFilter(filter);
+    setProgramDataLoading(true);
+    const data = await fetchTrainingReportData(filter);
+    setProgramData(data);
+    setProgramDataLoading(false);
+  };
 
   const getFormattedDate = (monthIndex, year) =>
     `${months[monthIndex]} ${year}`;
@@ -146,7 +192,7 @@ const Dashboard = () => {
     filteredFeedbacks.forEach(({ text }) => {
       text.split(" ").forEach((word) => {
         const cleanedWord = word.toLowerCase().replace(/[^a-zA-Z]/g, "");
-        if (cleanedWord) {
+        if (cleanedWord && !stopWords.has(cleanedWord)) {
           wordCount[cleanedWord] = (wordCount[cleanedWord] || 0) + 1;
         }
       });
@@ -156,6 +202,7 @@ const Dashboard = () => {
       text,
       value,
     }));
+
     setWords(wordArray);
   };
 
@@ -254,32 +301,67 @@ const Dashboard = () => {
         let monthlyCompletedCount = 0;
         let annualCompletedCount = 0;
 
-        programs.forEach((program) => {
-          const startDate = new Date(program.start_date * 1000);
-          const endDate = new Date(program.end_date * 1000);
+        const todayMidnight = new Date();
+        todayMidnight.setHours(0, 0, 0, 0);
 
-          // Check if program is completed, ongoing, or not started
-          if (endDate < today) {
-            completedCount++;
+        for (const program of programs) {
+          let programDates = [];
+          let latestDate = null;
 
-            // Monthly completed check (Matches selected month & year)
-            if (
-              endDate.getMonth() === selectedMonth &&
-              endDate.getFullYear() === selectedYear
-            ) {
-              monthlyCompletedCount++;
+          if (
+            !program.start_date &&
+            !program.end_date &&
+            program.selected_dates
+          ) {
+            programDates = program.selected_dates.map(
+              (date) => new Date(date.seconds * 1000)
+            );
+            latestDate = new Date(
+              Math.max(...programDates.map((d) => d.getTime()))
+            );
+          } else if (program.start_date && program.end_date) {
+            const start = new Date(program.start_date * 1000);
+            const end = new Date(program.end_date * 1000);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(0, 0, 0, 0);
+            latestDate = end;
+
+            let current = new Date(start);
+            while (current <= end) {
+              programDates.push(new Date(current));
+              current.setDate(current.getDate() + 1);
             }
 
-            // Annual completed check (Matches selected year)
-            if (endDate.getFullYear() === selectedYear) {
-              annualCompletedCount++;
+            if (end < todayMidnight) {
+              completedCount++;
+            } else if (start <= todayMidnight && end >= todayMidnight) {
+              ongoingCount++;
+            } else if (start > todayMidnight) {
+              notStartedCount++;
             }
-          } else if (startDate <= today && endDate >= today) {
-            ongoingCount++;
-          } else if (startDate > today) {
-            notStartedCount++;
           }
-        });
+
+          // ✅ Skip if ongoing or future
+          if (latestDate && latestDate >= todayMidnight) continue;
+
+          // ✅ Monthly match
+          if (
+            programDates.some(
+              (date) =>
+                date.getMonth() === selectedMonth &&
+                date.getFullYear() === selectedYear
+            )
+          ) {
+            monthlyCompletedCount++;
+          }
+
+          // ✅ Annual match
+          if (
+            programDates.some((date) => date.getFullYear() === selectedYear)
+          ) {
+            annualCompletedCount++;
+          }
+        }
 
         // Update state with fetched data
         setCompletedPrograms(completedCount);
@@ -444,6 +526,19 @@ const Dashboard = () => {
     }
   };
 
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const paginatedPrograms = programData.slice(
+    indexOfFirstItem,
+    indexOfLastItem
+  );
+
+  const totalPages = Math.ceil(programData.length / itemsPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
   return (
     <div className="min-h-screen p-6 bg-white text-gray-900">
       {/* Dashboard Header */}
@@ -475,60 +570,60 @@ const Dashboard = () => {
           title="Ongoing Programs"
           count={ongoingPrograms}
           color="bg-yellow-500"
-        >
-          <button
-            onClick={() => setShowCalendar(true)}
-            className="mt-2 px-3 py-1 bg-white text-yellow-600 rounded-lg shadow hover:bg-yellow-100 transition"
-          >
-            <FaCalendarAlt className="inline-block mr-2" /> View Event Calendar
-          </button>
-        </Card>
+        ></Card>
         <Card
           icon={<FaCalendarAlt />}
           title="Upcoming Events"
           count={notStartedPrograms}
           color="bg-red-500"
-        >
-          <button
-            onClick={() => setShowCalendar(true)}
-            className="mt-2 px-3 py-1 bg-white text-yellow-600 rounded-lg shadow hover:bg-yellow-100 transition"
-          >
-            <FaCalendarAlt className="inline-block mr-2" /> View Event Calendar
-          </button>
-        </Card>
+        ></Card>
       </div>
 
       <div className="mt-8">
         <div className="flex border-b">
           <button
-            className={`p-3 border-b-2 ${
+            className={`flex items-center gap-2 p-3 border-b-2 ${
               activeTab === "analytics"
                 ? "border-blue-600 text-blue-600 bg-white"
                 : "border-gray-300 text-gray-600 bg-white"
             }`}
             onClick={() => setActiveTab("analytics")}
           >
+            <HiChartBar />
             Analytics
           </button>
           <button
-            className={`p-3 border-b-2 ${
+            className={`flex items-center gap-2 p-3 border-b-2 ${
               activeTab === "reports"
                 ? "border-blue-600 text-blue-600 bg-white"
                 : "border-gray-300 text-gray-600 bg-white"
             }`}
             onClick={() => setActiveTab("reports")}
           >
+            <HiDocumentReport />
             Reports/Quota
           </button>
           <button
-            className={`p-3 border-b-2 ${
+            className={`flex items-center gap-2 p-3 border-b-2 ${
               activeTab === "decision-support"
                 ? "border-blue-600 text-blue-600 bg-white"
                 : "border-gray-300 text-gray-600 bg-white"
             }`}
             onClick={() => setActiveTab("decision-support")}
           >
+            <HiLightBulb />
             Decision Support
+          </button>
+          <button
+            className={`flex items-center gap-2 p-3 border-b-2 ${
+              activeTab === "events-overview"
+                ? "border-blue-600 text-blue-600 bg-white"
+                : "border-gray-300 text-gray-600 bg-white"
+            }`}
+            onClick={() => setActiveTab("events-overview")}
+          >
+            <HiCalendar />
+            Events Overview
           </button>
         </div>
 
@@ -625,6 +720,7 @@ const Dashboard = () => {
             <label className="mr-3 text-gray-700 font-medium">
               Select Date:
             </label>
+
             {/* Month-Year Dropdown */}
             <div className="relative mt-4 w-64">
               <FaCalendarAlt className="absolute left-3 top-3 text-gray-500" />
@@ -662,13 +758,185 @@ const Dashboard = () => {
                 current={annualCompleted}
                 total={annualQuota}
                 fetchData={() => fetchTrainingReportData("annual")}
-                selectedDate={selectedDate}
+                selectedDate={"Year " + selectedDate.split(" ")[1]}
               />
             </div>
+
+            {/* Time Range Toggle for Table */}
+            <div className="mt-8 flex justify-between items-center">
+              <h3 className="text-md font-semibold text-gray-700">
+                Program List
+              </h3>
+              <div className="space-x-2">
+                <button
+                  className={`px-4 py-2 rounded ${
+                    timeFilter === "monthly"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-700"
+                  }`}
+                  onClick={() => handleTimeFilterChange("monthly")}
+                >
+                  Monthly
+                </button>
+                <button
+                  className={`px-4 py-2 rounded ${
+                    timeFilter === "annual"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-700"
+                  }`}
+                  onClick={() => handleTimeFilterChange("annual")}
+                >
+                  Annual
+                </button>
+              </div>
+            </div>
+
+            {/* Pagination Setup */}
+            {(() => {
+              const itemsPerPage = 10;
+              const indexOfLastItem = currentPage * itemsPerPage;
+              const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+              const paginatedPrograms = programData.slice(
+                indexOfFirstItem,
+                indexOfLastItem
+              );
+              const totalPages = Math.ceil(programData.length / itemsPerPage);
+
+              return (
+                <div className="mt-4">
+                  {programDataLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="w-48 h-48">
+                        <Lottie animationData={SubLoading} loop={true} />
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full border border-gray-300 rounded-lg overflow-hidden">
+                          <thead className="bg-blue-100 text-gray-700">
+                            <tr>
+                              {[
+                                "#",
+                                "TRAINING",
+                                "LOCATION",
+                                "PARTICIPANTS",
+                                "TYPE OF TRAINING",
+                                "DATE",
+                                "MALE",
+                                "FEMALE",
+                                "TOTAL",
+                                "REMARKS",
+                              ].map((col) => (
+                                <th
+                                  key={col}
+                                  className="px-4 py-2 text-sm font-semibold text-left border-b"
+                                >
+                                  {col}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paginatedPrograms.length === 0 ? (
+                              <tr>
+                                <td
+                                  colSpan={10}
+                                  className="text-center text-gray-500 py-6"
+                                >
+                                  No data available.
+                                </td>
+                              </tr>
+                            ) : (
+                              paginatedPrograms.map((program, index) => (
+                                <tr key={index} className="hover:bg-gray-50">
+                                  {[
+                                    (currentPage - 1) * itemsPerPage +
+                                      index +
+                                      1,
+                                    "TRAINING",
+                                    "LOCATION",
+                                    "PARTICIPANTS",
+                                    "TYPE OF TRAINING",
+                                    "DATE",
+                                    "MALE",
+                                    "FEMALE",
+                                    "TOTAL",
+                                    "REMARKS",
+                                  ].map((key, i) => (
+                                    <td
+                                      key={i}
+                                      className="px-4 py-2 border-b text-sm"
+                                    >
+                                      {i === 0 ? key : program[key]}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Controls */}
+                      {totalPages > 1 && (
+                        <div className="flex justify-center mt-4 space-x-2">
+                          <button
+                            onClick={() =>
+                              setCurrentPage((prev) => Math.max(prev - 1, 1))
+                            }
+                            disabled={currentPage === 1}
+                            className={`px-3 py-1 rounded ${
+                              currentPage === 1
+                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                : "bg-blue-600 text-white hover:bg-blue-700"
+                            }`}
+                          >
+                            Prev
+                          </button>
+
+                          {Array.from({ length: totalPages }, (_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setCurrentPage(i + 1)}
+                              className={`px-3 py-1 rounded ${
+                                currentPage === i + 1
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                              }`}
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
+
+                          <button
+                            onClick={() =>
+                              setCurrentPage((prev) =>
+                                Math.min(prev + 1, totalPages)
+                              )
+                            }
+                            disabled={currentPage === totalPages}
+                            className={`px-3 py-1 rounded ${
+                              currentPage === totalPages
+                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                : "bg-blue-600 text-white hover:bg-blue-700"
+                            }`}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
         {activeTab === "decision-support" && <CompletedApplicantsMap />}
+
+        {activeTab === "events-overview" && <EventOverview />}
       </div>
 
       {/* Calendar Modal */}

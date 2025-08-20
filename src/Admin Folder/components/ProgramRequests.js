@@ -9,6 +9,7 @@ import {
   where,
   addDoc,
   setDoc,
+  onSnapshot,
 } from "firebase/firestore";
 import Swal from "sweetalert2";
 
@@ -24,27 +25,29 @@ export default function ProgramRequests() {
   const [selectedRequestId, setSelectedRequestId] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
 
+  const [isLoading, setIsLoading] = useState(false);
+
   // Fetch program requests from Firestore
   useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        const requestsCollection = collection(db, "Training Requests");
-        const snapshot = await getDocs(requestsCollection);
+    const unsubscribe = onSnapshot(
+      collection(db, "Training Requests"),
+      (snapshot) => {
         const requestData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
 
         setRequests(requestData);
-      } catch (error) {
+        setLoading(false);
+      },
+      (error) => {
         console.error("Error fetching requests:", error);
         Swal.fire("Error", "Failed to load program requests.", "error");
-      } finally {
         setLoading(false);
       }
-    };
+    );
 
-    fetchRequests();
+    return () => unsubscribe();
   }, []);
 
   // Function to update request status
@@ -55,6 +58,8 @@ export default function ProgramRequests() {
     trainerAssigned = ""
   ) => {
     try {
+      setIsLoading(true);
+
       const requestRef = doc(db, "Training Requests", id);
       await updateDoc(requestRef, {
         status: newStatus,
@@ -79,6 +84,8 @@ export default function ProgramRequests() {
     } catch (error) {
       console.error("Error updating status:", error);
       Swal.fire("Error", "Failed to update status.", "error");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -135,14 +142,17 @@ export default function ProgramRequests() {
       selected_dates,
       user_ID,
       requestor,
+      requestor_type,
       training_type,
       venue,
       num_participants,
       visibility,
       program_title,
+      thumbnail,
     } = request;
 
     let dateRanges = [];
+
 
     if (selected_dates && selected_dates.length > 0) {
       dateRanges = selected_dates.map((date) => new Date(date.seconds * 1000));
@@ -275,6 +285,8 @@ export default function ProgramRequests() {
             return `${code}-${Date.now()}`;
           };
 
+          const shareCode = generateShareCode();
+
           const programsCollection = collection(db, "Training Programs");
           const newProgramRef = await addDoc(programsCollection, {
             program_title: program_title,
@@ -285,13 +297,14 @@ export default function ProgramRequests() {
             selected_dates: selected_dates || [],
             materials_needed: "N/A",
             requirements: "N/A",
-            thumbnail: requested_img,
+            thumbnail: thumbnail || requested_img,
             slots: num_participants,
             visibility: visibility,
             requestor_id: user_ID,
-            share_code: generateShareCode(),
+            requestor_type: requestor_type,
+            share_code: shareCode,
             type: training_type,
-            trainer_assigned: trainersAssigned, // 🔹 Store as array
+            trainer_assigned: trainersAssigned,
             approved_applicants: {},
             batchCode: batchCode,
           });
@@ -299,15 +312,24 @@ export default function ProgramRequests() {
           const newProgramId = newProgramRef.id;
           const approvedApplicantId = `${user_ID}_${newProgramId}`;
 
-          const trainingProgramRef = doc(db, "Training Programs", newProgramId);
-          await updateDoc(trainingProgramRef, {
-            [`approved_applicants.${approvedApplicantId}`]: {
-              application_id: approvedApplicantId,
-              full_name: requestor,
-              status: "approved",
-              user_id: user_ID,
-            },
-          });
+          if (
+            requestor_type !== "Facilitator" &&
+            requestor_type !== "facilitator"
+          ) {
+            const trainingProgramRef = doc(
+              db,
+              "Training Programs",
+              newProgramId
+            );
+            await updateDoc(trainingProgramRef, {
+              [`approved_applicants.${approvedApplicantId}`]: {
+                application_id: approvedApplicantId,
+                full_name: requestor,
+                status: "approved",
+                user_id: user_ID,
+              },
+            });
+          }
 
           const userHistoryRef = doc(db, "User History", approvedApplicantId);
           await setDoc(
@@ -328,6 +350,36 @@ export default function ProgramRequests() {
 
           updateRequestStatus(id, "Approved", "", trainersAssigned);
 
+          addNotification(
+            "Your Training Request has been Approved!",
+            `Good news, ${requestor}! Your requested training program "${program_title}" has been approved and is now available. Click here to check it out.`,
+            user_ID,
+            {
+              action_link: `/user/home/${newProgramId}`,
+              program_data: {
+                id: newProgramId,
+                program_title: program_title,
+                program_venue: venue,
+                description: `${training_type} requested by ${requestor}`,
+                start_date: start_date ? start_date.seconds : null,
+                end_date: end_date ? end_date.seconds : null,
+                selected_dates: selected_dates || [],
+                materials_needed: "N/A",
+                requirements: "N/A",
+                thumbnail: thumbnail || requested_img,
+                slots: num_participants,
+                visibility: visibility,
+                requestor_id: user_ID,
+                requestor_type: requestor_type || "Not Specified",
+                share_code: shareCode,
+                type: training_type,
+                trainer_assigned: trainersAssigned,
+                approved_applicants: {},
+                batchCode: batchCode,
+              },
+            }
+          );
+
           Swal.fire(
             "Success",
             "Training request approved and assigned!",
@@ -339,6 +391,8 @@ export default function ProgramRequests() {
         }
       }
     });
+
+    setIsLoading(false);
   };
 
   // Open rejection modal with predefined reasons
@@ -385,6 +439,8 @@ export default function ProgramRequests() {
         }
       }
     });
+
+    setIsLoading(false);
   };
 
   const filteredRequests = requests.filter((request) => {
@@ -452,6 +508,7 @@ export default function ProgramRequests() {
             <thead>
               <tr className="bg-blue-600 text-white text-left">
                 <th className="p-4">Requestor Name</th>
+                <th className="p-4">Requestor Type</th>
                 <th className="p-4">Training Type</th>
                 <th className="p-4">Date(s)</th>
                 <th className="p-4">Venue</th>
@@ -468,6 +525,9 @@ export default function ProgramRequests() {
                 >
                   <td className="p-4 font-medium">
                     {request.requestor || "N/A"}
+                  </td>
+                  <td className="p-4 font-medium">
+                    {request.requestor_type || "Not Specified"}
                   </td>
                   <td className="p-4">{request.training_type}</td>
 
@@ -546,6 +606,18 @@ export default function ProgramRequests() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+            <h2 className="text-xl font-semibold mb-2">Loading...</h2>
+            <p className="text-gray-600">
+              This could take a while, sip a coffee first ☕
+            </p>
+          </div>
         </div>
       )}
     </div>

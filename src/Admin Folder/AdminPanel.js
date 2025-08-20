@@ -11,15 +11,54 @@ import mdrrmo_logo from "./admin_img/mdrrmo_logo.png";
 import dead from "./admin_img/dead.png";
 import { db } from "../firebase/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
+import {
+  FaTachometerAlt,
+  FaChalkboardTeacher,
+  FaUsers,
+  FaUserCheck,
+  FaUserShield,
+  FaCertificate,
+  FaEnvelopeOpenText,
+  FaCog,
+  FaHandshake,
+  FaSignOutAlt,
+  FaUserCircle,
+} from "react-icons/fa";
 
-const AdminPanel = ({ handleSignOut }) => {
+const AdminPanel = ({ handleSignOut, userId }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState("");
   const location = useLocation(); // get the current location
-  const [isMobile, setIsMobile] = useState(false);
   const [hasPendingApplicants, setHasPendingApplicants] = useState(false);
   const [hasPendingRegistrants, setHasPendingRegistrants] = useState(false);
   const navigate = useNavigate();
+
+  const isMobile = window.innerWidth <= 768;
+
+  const [userInfo, setUserInfo] = useState(null);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const unsubscribe = onSnapshot(
+      collection(db, "Users"),
+      (snapshot) => {
+        const userDoc = snapshot.docs.find((doc) => doc.id === userId);
+        if (userDoc) {
+          setUserInfo(userDoc.data());
+        }
+      },
+      (error) => console.error("Failed to fetch user info:", error)
+    );
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  useEffect(() => {
+    if (isMobile) {
+      navigate("/noaccess", { replace: true });
+    }
+  }, [isMobile, navigate]);
 
   const isProgramDetailsRoute = matchPath(
     "/admin/training-programs/:programId",
@@ -34,17 +73,6 @@ const AdminPanel = ({ handleSignOut }) => {
     "/admin/training-programs/user-history/:userId",
     location.pathname
   );
-
-  const MobileWarning = () => {
-    return (
-      <div className="mobile-warning">
-        <img src={dead} alt="Warning" className="warning-image" />
-        <h3>
-          For a better experience, this is not accessible on mobile devices.
-        </h3>
-      </div>
-    );
-  };
 
   useEffect(() => {
     const now = new Date(); // Get current timestamp object
@@ -99,17 +127,6 @@ const AdminPanel = ({ handleSignOut }) => {
     formatDate();
   }, []);
 
-  //check if the user is on mobile
-  useEffect(() => {
-    const isMobileDevice = () => {
-      return /Mobi|Android/i.test(navigator.userAgent);
-    };
-
-    if (isMobileDevice()) {
-      setIsMobile(true);
-    }
-  });
-
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
@@ -127,135 +144,154 @@ const AdminPanel = ({ handleSignOut }) => {
   const isProgramDetailsOrRatings =
     isProgramDetailsRoute || isProgramRatingsRoute || isHistoryRoute;
 
+  const handleLogout = () => {
+    closeSidebarOnNavLink();
+
+    handleSignOut();
+  };
+
   return (
     <div>
-      {/*conditionally render the layout based on the device the user is using*/}
-      {isMobile ? (
-        <MobileWarning />
-      ) : (
-        <div>
-          <div className="admin-panel">
-            <header className="header">
-              {isProgramDetailsOrRatings ? (
-                <button className="hamburger" onClick={() => navigate(-1)}>
-                  ←
-                </button>
+      <div>
+        <div className="admin-panel">
+          <header className="header">
+            {isProgramDetailsOrRatings ? (
+              <button className="hamburger" onClick={() => navigate(-1)}>
+                ←
+              </button>
+            ) : (
+              <button className="hamburger" onClick={toggleSidebar}>
+                ☰
+              </button>
+            )}
+            <img src={mdrrmo_logo} alt="Logo" className="logo" />
+            <h1 className="title">MDRRMO Training Program Management System</h1>
+
+            <div className="flex items-center gap-3 pr-4">
+              {userInfo?.profile_picture ? (
+                <img
+                  src={userInfo.profile_picture}
+                  alt="Admin"
+                  className="w-10 h-10 rounded-full object-cover border-2 border-green-600 shadow-sm"
+                />
               ) : (
-                <button className="hamburger" onClick={toggleSidebar}>
-                  ☰
-                </button>
+                <FaUserCircle className="w-10 h-10 text-green-600" />
               )}
-              <img src={mdrrmo_logo} alt="Logo" className="logo" />
-              <h1 className="title">
-                MDRRMO Training Program Management System
-              </h1>
-              <div className="header-date">{currentDate}</div>
-            </header>
 
-            <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-              <div className="sidebar-logo">
-                <img src={mdrrmo_logo} alt="MDRRMO Logo" />
-              </div>
-              <hr />
-              <ul className="sidebar-nav">
-                <NavLink
-                  to="dashboard"
-                  className={({ isActive }) =>
-                    isActive || isDashboardActive ? "active" : ""
-                  }
-                  onClick={closeSidebarOnNavLink} // close sidebar on click
-                >
-                  <li>Dashboard</li>
-                </NavLink>
-                <NavLink
-                  to="training-programs"
-                  className={({ isActive }) => (isActive ? "active" : "")}
-                  onClick={closeSidebarOnNavLink}
-                >
-                  <li>Training Programs</li>
-                </NavLink>
-                <NavLink
-                  to="applicants"
-                  className={({ isActive }) => (isActive ? "active" : "")}
-                  onClick={closeSidebarOnNavLink}
-                >
-                  <li className="relative flex items-center">
-                    <span>Applicants</span>
-                    {hasPendingApplicants && (
-                      <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-blink"></span>
-                    )}
-                  </li>
-                </NavLink>
-
-                <NavLink
-                  to="registrants"
-                  className={({ isActive }) => (isActive ? "active" : "")}
-                  onClick={closeSidebarOnNavLink}
-                >
-                  <li className="relative flex items-center">
-                    <span>Registrants</span>
-                    {hasPendingRegistrants && (
-                      <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-blink"></span>
-                    )}
-                  </li>
-                </NavLink>
-                <NavLink
-                  to="users"
-                  className={({ isActive }) => (isActive ? "active" : "")}
-                  onClick={closeSidebarOnNavLink}
-                >
-                  <li>Access Control</li>
-                </NavLink>
-                <NavLink
-                  to="certificate"
-                  className={({ isActive }) => (isActive ? "active" : "")}
-                  onClick={closeSidebarOnNavLink}
-                >
-                  <li>Certificate Requests</li>
-                </NavLink>
-                <NavLink
-                  to="program-requests"
-                  className={({ isActive }) => (isActive ? "active" : "")}
-                  onClick={closeSidebarOnNavLink}
-                >
-                  <li>Program Requests</li>
-                </NavLink>
-                <NavLink
-                  to="settings"
-                  className={({ isActive }) => (isActive ? "active" : "")}
-                  onClick={closeSidebarOnNavLink}
-                >
-                  <li>Settings</li>
-                </NavLink>
-                <NavLink
-                  to="engagements"
-                  className={({ isActive }) => (isActive ? "active" : "")}
-                  onClick={closeSidebarOnNavLink}
-                >
-                  <li>Engagements</li>
-                </NavLink>
-              </ul>
-              <div className="sidebar-footer">
-                <ul>
-                  <button className="sign-out" onClick={handleSignOut}>
-                    Sign Out
-                  </button>
-                </ul>
-                <p>&copy; {new Date().getFullYear()}</p>
+              <div className="flex flex-col text-right">
+                <span className="text-sm font-semibold text-gray-800 leading-none">
+                  {userInfo?.name || "Administrator"}
+                </span>
+                <span className="text-xs text-gray-500 truncate max-w-[160px] leading-tight">
+                  {userInfo?.email || "admin@example.com"}
+                </span>
               </div>
             </div>
+          </header>
 
-            <main className="admin-content">
-              <Outlet />
-              {location.pathname === "/admin" && <Navigate to="dashboard" />}
-            </main>
+          <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+            <div className="sidebar-logo">
+              <img src={mdrrmo_logo} alt="MDRRMO Logo" />
+            </div>
+            <hr />
+            <ul className="sidebar-nav space-y-1 text-sm">
+              {[
+                {
+                  label: "Dashboard",
+                  to: "dashboard",
+                  icon: <FaTachometerAlt />,
+                  extraActive: isDashboardActive,
+                },
+                {
+                  label: "Training Programs",
+                  to: "training-programs",
+                  icon: <FaChalkboardTeacher />,
+                },
+                {
+                  label: "Applicants",
+                  to: "applicants",
+                  icon: <FaUsers />,
+                  badge: hasPendingApplicants,
+                },
+                {
+                  label: "Registrants",
+                  to: "registrants",
+                  icon: <FaUserCheck />,
+                  badge: hasPendingRegistrants,
+                },
+                {
+                  label: "Access Control",
+                  to: "users",
+                  icon: <FaUserShield />,
+                },
+                {
+                  label: "Certificate Requests",
+                  to: "certificate",
+                  icon: <FaCertificate />,
+                },
+                {
+                  label: "Program Requests",
+                  to: "program-requests",
+                  icon: <FaEnvelopeOpenText />,
+                },
+                {
+                  label: "Settings",
+                  to: "settings",
+                  icon: <FaCog />,
+                },
+                {
+                  label: "Engagements",
+                  to: "engagements",
+                  icon: <FaHandshake />,
+                },
+              ].map(({ to, icon, label, extraActive, badge }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    isActive || extraActive
+                      ? "active"
+                      : "text-gray-700 hover:text-green-600"
+                  }
+                  onClick={closeSidebarOnNavLink}
+                >
+                  <li className="relative flex items-center gap-3 py-2 pl-2 pr-3 rounded hover:bg-gray-100 transition-colors">
+                    {icon}
+                    <span>{label}</span>
+                    {badge && (
+                      <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+                    )}
+                  </li>
+                </NavLink>
+              ))}
 
-            {sidebarOpen && (
-              <div className="overlay" onClick={toggleSidebar}></div>
-            )}
+              <NavLink
+                to="/"
+                onClick={handleLogout}
+                className="text-red-500 hover:text-red-700 transition-colors"
+              >
+                <li className="text-red-500 flex items-center gap-3 py-2 pl-2 pr-3 rounded">
+                  <FaSignOutAlt text-red-500 />
+                  <span className="text-red-500">Logout</span>
+                </li>
+              </NavLink>
+            </ul>
+
+            <div className="sidebar-footer">
+              <p>&copy; {new Date().getFullYear()}</p>
+            </div>
           </div>
+
+          <main className="admin-content">
+            <Outlet />
+            {location.pathname === "/admin" && <Navigate to="dashboard" />}
+          </main>
+
+          {sidebarOpen && (
+            <div className="overlay" onClick={toggleSidebar}></div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

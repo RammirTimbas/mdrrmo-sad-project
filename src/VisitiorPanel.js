@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import mdrrmo_logo from "./logos/mdrrmo_logo.png";
 import LoginForm from "./LoginForm";
 import RegistrationForm from "./RegistrationForm";
@@ -13,9 +13,11 @@ import {
   FaChevronUp,
   FaBullseye,
   FaEye,
+  FaUser,
 } from "react-icons/fa";
 import nothing_found_gif from "./lottie-files-anim/no_result.json";
 import Lottie from "lottie-react";
+import Header from "./Header";
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -32,10 +34,12 @@ const VisitorPanel = ({ onLoginClick }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showMission, setShowMission] = useState(false);
   const [headerBackground, setHeaderBackground] = useState("#FFFFFF");
+  const [imgLoading, setImgLoading] = useState(true);
 
   const [images, setCarouselImages] = useState([]);
 
   const [upcomingPrograms, setUpcomingPrograms] = useState([]);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const [filteredPrograms, setFilteredPrograms] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,18 +52,9 @@ const VisitorPanel = ({ onLoginClick }) => {
 
   const [showAccordion, setShowAccordion] = useState(false);
   const [activeTab, setActiveTab] = useState(null);
+  const [showSearchFilterSection, setShowSearchFilterSection] = useState(false);
 
   const [showFilters, setShowFilters] = useState(false);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prevIndex) =>
-        prevIndex === images.length - 1 ? 0 : prevIndex + 1
-      );
-    }, 5000); // Change every 5s
-
-    return () => clearInterval(interval);
-  }, [images]);
 
   const applyFilters = (search, filterOptions) => {
     let filtered = trainingPrograms;
@@ -153,7 +148,7 @@ const VisitorPanel = ({ onLoginClick }) => {
 
   useEffect(() => {
     const fetchImages = async () => {
-      console.log("This: " + API_BASE_URL);
+      setImgLoading(true);
       try {
         const response = await fetch(
           `${API_BASE_URL}/api/get-carousel-images`,
@@ -163,16 +158,30 @@ const VisitorPanel = ({ onLoginClick }) => {
               "Content-Type": "application/json",
             },
           }
-        ); //bakend url
+        );
+
         if (response.ok) {
           const data = await response.json();
-          console.log(data);
-          setCarouselImages(data);
+
+          // Preload all images
+          const preloadPromises = data.map((img) => {
+            return new Promise((resolve, reject) => {
+              const image = new Image();
+              image.src = img.url;
+              image.onload = () => resolve(img); // Resolve with original data
+              image.onerror = reject;
+            });
+          });
+
+          const loadedImages = await Promise.all(preloadPromises);
+          setCarouselImages(loadedImages); // Update state only after preloading
         } else {
           console.error("Failed to fetch images");
         }
       } catch (error) {
         console.error("Error fetching images:", error);
+      } finally {
+        setImgLoading(false);
       }
     };
 
@@ -222,32 +231,23 @@ const VisitorPanel = ({ onLoginClick }) => {
     fetchTrainingPrograms();
   }, []);
 
+  const carouselRef = useRef(null);
+
   useEffect(() => {
-    window.addEventListener("scroll", handleScroll);
+    const handleScroll = () => {
+      const carousel = carouselRef.current;
+      if (!carousel) return;
 
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
+      const rect = carousel.getBoundingClientRect();
+      const isOverlapping = rect.top <= 0 && rect.bottom > 0;
+
+      setHeaderBackground(isOverlapping ? "transparent" : "white");
     };
+
+    window.addEventListener("scroll", handleScroll);
+    handleScroll(); // call once on mount
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  const handleScroll = () => {
-    const carouselSection = document.getElementById("carousel");
-
-    if (carouselSection) {
-      const carouselPosition = carouselSection.getBoundingClientRect();
-
-      if (
-        carouselPosition.top <= window.innerHeight &&
-        carouselPosition.bottom >= 0
-      ) {
-        setHeaderBackground("transparent");
-      } else {
-        setHeaderBackground("#FFFFFF");
-      }
-    } else {
-      setHeaderBackground("#FFFFFF");
-    }
-  };
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -273,25 +273,29 @@ const VisitorPanel = ({ onLoginClick }) => {
     onLoginClick(toggleLoginForm);
   };
 
-  const goToPrevImage = () => {
-    setCurrentImageIndex((prevIndex) =>
-      prevIndex === 0 ? images.length - 1 : prevIndex - 1
-    );
+  const nextImage = () => {
+    if (isAnimating) return;
+    setIsAnimating(true);
+    setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
   };
 
-  const goToNextImage = () => {
-    setCurrentImageIndex((prevIndex) =>
-      prevIndex === images.length - 1 ? 0 : prevIndex + 1
-    );
+  const prevImage = () => {
+    if (isAnimating) return;
+    setIsAnimating(true);
+    setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
   };
 
   useEffect(() => {
+    if (!images.length) return; // Prevent running if no images
+
     const interval = setInterval(() => {
-      goToNextImage();
-    }, 3000); //chnage image every 3 secs
+      setCurrentImageIndex((prevIndex) =>
+        prevIndex === images.length - 1 ? 0 : prevIndex + 1
+      );
+    }, 5000); // Fixed at 5 seconds
 
     return () => clearInterval(interval);
-  }, [images]);
+  }, [images.length]); // Only re-run if number of images changes
 
   const toggleMissionVision = () => {
     setShowMission(!showMission);
@@ -328,49 +332,74 @@ const VisitorPanel = ({ onLoginClick }) => {
     setUpcomingPrograms(upcoming);
   };
 
-  return (
-    <div className="VisitorPanel">
-      <header className="header" style={{ backgroundColor: headerBackground }}>
-        <button className="hamburger" onClick={handleInteraction}>
-          ☰
-        </button>
-        <img src={mdrrmo_logo} alt="Logo" className="logo" />
-        <h1 className="title">MDRRMO Training Program Management System</h1>
-        <h1 className="title-mobile">MDRRMO - TPMS</h1>
+  const getProgramDate = (program) => {
+    if (
+      Array.isArray(program.selected_dates) &&
+      program.selected_dates.length > 0
+    ) {
+      const sortedDates = [...program.selected_dates].sort(
+        (a, b) => a.seconds - b.seconds
+      );
+      const firstDate = sortedDates[0];
+      if (firstDate?.seconds) {
+        return new Date(firstDate.seconds * 1000).toLocaleDateString();
+      } else if (firstDate?.toDate) {
+        // fallback for Firestore Timestamp object
+        return firstDate.toDate().toLocaleDateString();
+      }
+    }
 
-        <nav className="header-nav">
-          <ul>
-            <li onClick={() => scrollToSection("carousel")} className="home">
-              <span className="desktop-text">Home</span>
-              <i className="fas fa-home mobile-icon"></i>
-            </li>
-            <li
-              onClick={() => scrollToSection("training-programs")}
-              className="training"
-            >
-              <span className="desktop-text">Training Programs</span>
-              <i className="fas fa-chalkboard-teacher mobile-icon"></i>
-            </li>
-            <li
-              onClick={() => scrollToSection("mission-vision")}
-              className="mission-vision"
-            >
-              <span className="desktop-text">Mission/Vision</span>
-              <i className="fas fa-bullseye mobile-icon"></i>
-            </li>
-            <li
-              onClick={onLoginClick}
-              className="login"
-              style={{ backgroundColor: "#007BFF", borderRadius: "10px" }}
-            >
-              <span className="desktop-text" style={{ color: "white" }}>
-                Login
-              </span>
-              <i className="fas fa-sign-in-alt mobile-icon"></i>
-            </li>
-          </ul>
-        </nav>
-      </header>
+    if (program.start_date) {
+      return new Date(program.start_date * 1000).toLocaleDateString(); // FIXED HERE
+    }
+
+    return "No Date";
+  };
+
+  const getDaysUntilStart = (program) => {
+    let startTimestamp = program.start_date * 1000;
+
+    if (
+      Array.isArray(program.selected_dates) &&
+      program.selected_dates.length > 0
+    ) {
+      const sortedDates = [...program.selected_dates].sort(
+        (a, b) => a.seconds - b.seconds
+      );
+      startTimestamp = sortedDates[0].seconds * 1000;
+    }
+
+    const today = new Date().setHours(0, 0, 0, 0);
+    const startDate = new Date(startTimestamp).setHours(0, 0, 0, 0);
+
+    const diffInMs = startDate - today;
+    const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInDays < 0) return null; // already started
+    if (diffInDays === 0) return "Starts today";
+    if (diffInDays === 1) return "Starts tomorrow";
+    return `Starts in ${diffInDays} days`;
+  };
+
+  const [activeFilterModal, setActiveFilterModal] = useState(null);
+
+  const openFilterModal = (filterName) => {
+    setActiveFilterModal(filterName);
+  };
+
+  const closeModal = () => {
+    setActiveFilterModal(null);
+  };
+
+  return (
+    <div className="w-full">
+      <Header
+        headerBackground={headerBackground}
+        handleInteraction={handleInteraction}
+        scrollToSection={scrollToSection}
+        onLoginClick={onLoginClick}
+        showLogin={true}
+      />
 
       {showLoginForm && (
         <LoginForm
@@ -389,272 +418,288 @@ const VisitorPanel = ({ onLoginClick }) => {
         id="carousel"
         className="relative w-full h-[35vh] md:h-screen overflow-hidden"
       >
-        {/* Left Arrow */}
-        <button
-          onClick={() =>
-            setCurrentImageIndex((prev) =>
-              prev === 0 ? images.length - 1 : prev - 1
-            )
-          }
-          className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white text-3xl z-10 bg-transparent p-2"
-        >
-          ❮
-        </button>
-
-        {/* Image Container */}
-        <div className="absolute inset-0 w-full h-full">
-          <AnimatePresence>
-            {images.length > 0 && (
-              <motion.img
-                key={currentImageIndex}
-                src={images[currentImageIndex]?.url}
-                alt="carousel"
-                className="absolute inset-0 w-full h-full object-cover"
-                initial={{ opacity: 0, scale: 1.1 }} // Smooth fade-in effect
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.1 }}
-                transition={{ duration: 0.8 }}
-              />
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Right Arrow */}
-        <button
-          onClick={() =>
-            setCurrentImageIndex((prev) =>
-              prev === images.length - 1 ? 0 : prev + 1
-            )
-          }
-          className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white text-3xl z-10 bg-transparent p-2"
-        >
-          ❯
-        </button>
-      </section>
-
-      <section
-        id="training-programs"
-        className="bg-blue-600 py-6 px-4 md:px-12"
-      >
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-white text-2xl font-bold mb-4">
-            Search & Filter Programs
-          </h2>
-
-          {/* ✅ DESKTOP LAYOUT UNCHANGED */}
-          <div className="hidden md:grid grid-cols-4 gap-4">
-            {/* 🔍 Search Input */}
-            <div className="relative">
-              <FaSearch className="absolute left-4 top-3 text-white text-lg" />
-              <input
-                type="text"
-                placeholder="Search by title..."
-                className="p-3 pr-14 pl-4 rounded-lg w-full bg-transparent text-white border border-white text-right focus:outline-none focus:ring-2 focus:ring-white placeholder-white"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            {/* 🔽 Program Type Dropdown */}
-            <div className="relative">
-              <FaFilter className="absolute left-4 top-3 text-white text-lg" />
-              <select
-                className="p-3 pl-14 pr-4 rounded-lg w-full bg-transparent text-white border border-white focus:outline-none focus:ring-2 focus:ring-white appearance-none"
-                value={filters.type}
-                name="type"
-                onChange={handleFilterChange}
-              >
-                <option className="text-black" value="">
-                  All Types
-                </option>
-                {getUniqueValues("type").map((type) => (
-                  <option key={type} className="text-black" value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 📅 Date Picker */}
-            <div className="relative">
-              <FaCalendarAlt className="absolute left-4 top-3 text-white text-lg" />
-              <input
-                type="date"
-                className="p-3 pl-14 pr-4 rounded-lg w-full bg-transparent text-white border border-white focus:outline-none focus:ring-2 focus:ring-white"
-                value={filters.date}
-                onChange={(e) =>
-                  setFilters({ ...filters, date: e.target.value })
-                }
-              />
-            </div>
-
-            {/* 📍 Venue Dropdown */}
-            <div className="relative">
-              <FaMapMarkerAlt className="absolute left-4 top-3 text-white text-lg" />
-              <select
-                className="p-3 pl-14 pr-4 rounded-lg w-full bg-transparent text-white border border-white focus:outline-none focus:ring-2 focus:ring-white appearance-none"
-                value={filters.venue}
-                name="venue"
-                onChange={handleFilterChange}
-              >
-                <option className="text-black" value="">
-                  All Venues
-                </option>
-                {getUniqueValues("program_venue").map((venue) => (
-                  <option key={venue} className="text-black" value={venue}>
-                    {venue}
-                  </option>
-                ))}
-              </select>
-            </div>
+        {imgLoading ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="w-full h-full bg-gradient-to-r from-gray-300 via-gray-200 to-gray-300 animate-shimmer bg-[length:200%_100%]"></div>
           </div>
+        ) : (
+          <>
+            {/* Left Arrow */}
+            <button
+              onClick={prevImage}
+              className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white text-3xl z-10 bg-transparent p-2"
+            >
+              ❮
+            </button>
 
-          {/* ✅ MOBILE VIEW - ONLY SEARCH FIELD VISIBLE INITIALLY */}
-          <div className="md:hidden">
-            {/* 🔍 Search Input (Full Width in Mobile) */}
-            <div className="relative mb-3">
-              <FaSearch className="absolute left-4 top-3 text-white text-lg" />
-              <input
-                type="text"
-                placeholder="Search by title..."
-                className="p-3 pr-14 pl-4 rounded-lg w-full bg-transparent text-white border border-white text-right focus:outline-none focus:ring-2 focus:ring-white placeholder-white"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            {/* 🔽 More Filters Toggle Button */}
-            <div className="flex justify-center">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center bg-white text-blue-600 px-4 py-2 rounded-lg shadow-md text-sm font-semibold"
-              >
-                {showFilters ? (
-                  <FaChevronUp className="mr-2" />
-                ) : (
-                  <FaChevronDown className="mr-2" />
-                )}
-                {showFilters ? "Hide Filters" : "More Filters"}
-              </button>
-            </div>
-
-            {/* 🔹 Mobile Filters (With Animation) */}
-            <AnimatePresence>
-              {showFilters && (
+            {/* Image Wrapper */}
+            <div className="relative w-full h-full overflow-hidden flex items-center">
+              <AnimatePresence custom={currentImageIndex}>
                 <motion.div
-                  className="grid grid-cols-1 gap-4 mt-4"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
+                  key={currentImageIndex}
+                  className="absolute inset-0 w-full h-full flex"
+                  initial={{ x: "100%" }} // Start off-screen to the right
+                  animate={{ x: "0%" }} // Move to the center
+                  exit={{ x: "-100%" }} // Slide out to the left
+                  transition={{ duration: 0.8, ease: "easeInOut" }}
+                  onAnimationComplete={() => setIsAnimating(false)}
                 >
-                  {/* 🔽 Program Type Dropdown */}
-                  <div className="relative">
-                    <FaFilter className="absolute left-4 top-3 text-white text-lg" />
-                    <select
-                      className="p-3 pl-14 pr-4 rounded-lg w-full bg-transparent text-white border border-white focus:outline-none focus:ring-2 focus:ring-white appearance-none"
-                      value={filters.type}
-                      name="type"
-                      onChange={handleFilterChange}
-                    >
-                      <option className="text-black" value="">
-                        All Types
-                      </option>
-                      {getUniqueValues("type").map((type) => (
-                        <option key={type} className="text-black" value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* 📅 Date Picker */}
-                  <div className="relative">
-                    <FaCalendarAlt className="absolute left-4 top-3 text-white text-lg" />
-                    <input
-                      type="date"
-                      className="p-3 pl-14 pr-4 rounded-lg w-full bg-transparent text-white border border-white focus:outline-none focus:ring-2 focus:ring-white"
-                      value={filters.date}
-                      name="date"
-                      onChange={handleFilterChange}
-                    />
-                  </div>
-
-                  {/* 📍 Venue Dropdown */}
-                  <div className="relative">
-                    <FaMapMarkerAlt className="absolute left-4 top-3 text-white text-lg" />
-                    <select
-                      className="p-3 pl-14 pr-4 rounded-lg w-full bg-transparent text-white border border-white focus:outline-none focus:ring-2 focus:ring-white appearance-none"
-                      value={filters.venue}
-                      name="venue"
-                      onChange={handleFilterChange}
-                    >
-                      <option className="text-black" value="">
-                        All Venues
-                      </option>
-                      {getUniqueValues("program_venue").map((venue) => (
-                        <option
-                          key={venue}
-                          className="text-black"
-                          value={venue}
-                        >
-                          {venue}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <img
+                    src={images[currentImageIndex]?.url}
+                    alt="carousel"
+                    className="w-full h-full object-cover"
+                  />
                 </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+              </AnimatePresence>
+            </div>
+
+            {/* Right Arrow */}
+            <button
+              onClick={nextImage}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white text-3xl z-10 bg-transparent p-2"
+            >
+              ❯
+            </button>
+          </>
+        )}
       </section>
 
       {/* 🏆 Training Programs Section */}
-      <section className="p-4 md:p-16">
-        {/* Section Title */}
-        <h2 className="text-3xl font-bold text-center text-black mb-8">
+      <section
+        id="training-programs"
+        className="px-4 py-8 md:px-16 md:py-12 lg:py-20 bg-white"
+      >
+        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-center text-black mb-10">
           Offered Training Programs
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 place-items-center">
-          {filteredPrograms.length === 0 ? (
-            <div className="flex flex-col items-center justify-center w-fit col-span-full">
-              <div className="w-48 h-48 flex justify-center items-center">
-                <Lottie animationData={nothing_found_gif} loop={false} />
-              </div>
-              <p className="text-center text-gray-300 text-lg font-medium mt-2">
-                No programs found.
-              </p>
+        <div className="max-w-6xl mx-auto px-4 h-32">
+          <div className="flex flex-wrap gap-2 sm:gap-3 pb-2 justify-between">
+            {/* Search Input - Always visible */}
+            <div className="relative flex-1 min-w-[220px] flex items-center">
+              <input
+                type="text"
+                placeholder="Search title..."
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-full text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-          ) : (
+
+            {/* Type Filter */}
+            <div className="relative">
+              <button
+                className="block sm:hidden w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 text-lg"
+                onClick={() => openFilterModal("type")}
+              >
+                <span>
+                  <FaFilter />
+                </span>
+              </button>
+              <div className="hidden sm:block relative">
+                <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+                <select
+                  className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-full text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none"
+                  value={filters.type}
+                  name="type"
+                  onChange={handleFilterChange}
+                >
+                  <option value="">All Types</option>
+                  {getUniqueValues("type").map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Venue Filter */}
+            <div className="relative">
+              <button
+                className="block sm:hidden w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 text-lg"
+                onClick={() => openFilterModal("venue")}
+              >
+                <span>
+                  <FaMapMarkerAlt className="text-black-500" />
+                </span>
+              </button>
+              <div className="hidden sm:block relative">
+                <FaMapMarkerAlt className="text-black-500 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+                <select
+                  className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-full text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none"
+                  value={filters.venue}
+                  name="venue"
+                  onChange={handleFilterChange}
+                >
+                  <option value="">All Venues</option>
+                  {getUniqueValues("program_venue").map((venue) => (
+                    <option key={venue} value={venue}>
+                      {venue}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Modal for Filters */}
+          {activeFilterModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-4 rounded-lg w-[90%] max-w-sm space-y-4">
+                <h3 className="text-lg font-semibold capitalize">
+                  Select {activeFilterModal}
+                </h3>
+
+                {activeFilterModal === "type" && (
+                  <select
+                    className="w-full border border-gray-300 rounded-md py-2 px-3"
+                    name="type"
+                    value={filters.type}
+                    onChange={(e) => {
+                      handleFilterChange(e);
+                      closeModal();
+                    }}
+                  >
+                    <option value="">All Types</option>
+                    {getUniqueValues("type").map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {activeFilterModal === "date" && (
+                  <input
+                    type="date"
+                    name="date"
+                    value={filters.date}
+                    onChange={(e) => {
+                      handleFilterChange(e);
+                      closeModal();
+                    }}
+                    className="w-full border border-gray-300 rounded-md py-2 px-3"
+                  />
+                )}
+
+                {activeFilterModal === "venue" && (
+                  <select
+                    className="w-full border border-gray-300 rounded-md py-2 px-3"
+                    name="venue"
+                    value={filters.venue}
+                    onChange={(e) => {
+                      handleFilterChange(e);
+                      closeModal();
+                    }}
+                  >
+                    <option value="">All Venues</option>
+                    {getUniqueValues("program_venue").map((venue) => (
+                      <option key={venue} value={venue}>
+                        {venue}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                <button
+                  onClick={closeModal}
+                  className="block w-full mt-2 text-center bg-gray-200 py-2 rounded-md hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 place-items-center">
+          {filteredPrograms.length > 0 ? (
             filteredPrograms.map((program) => (
               <div
                 key={program.id}
-                className="relative w-full h-80 rounded-lg overflow-hidden shadow-lg transition-transform transform hover:scale-105 cursor-pointer"
-                onClick={() => onLoginClick()}
+                onClick={onLoginClick}
+                className="bg-white w-full max-w-xs rounded-2xl border border-gray-200 shadow-md overflow-hidden hover:shadow-xl hover:-translate-y-1 transform transition duration-300 flex flex-col h-[500px]" // ensure equal height
               >
-                {/* Thumbnail */}
-                <img
-                  src={program.thumbnail}
-                  alt={program.program_title}
-                  className="absolute top-0 left-0 w-full h-full object-cover"
-                />
+                {/* Badge Row */}
+                <div className="flex items-center justify-between px-4 pt-4">
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 uppercase truncate max-w-[48%]">
+                    {program.type || "Not Specified"}
+                  </span>
+                  <span className="flex items-center justify-end gap-1 text-xs font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-800 capitalize truncate max-w-[48%] text-right">
+                    <FaUser className="h-3 w-3 flex-shrink-0" />
+                    {program.trainer_assigned || "Not Specified"}
+                  </span>
+                </div>
 
-                {/* Darkened Glassmorphism Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col justify-end p-6 text-white">
-                  <h2 className="text-xl font-bold truncate text-white">
-                    {program.program_title}
-                  </h2>
-                  <p className="text-sm text-gray-200 truncate">
-                    {program.description}
+                {/* Thumbnail with start badge */}
+                <div className="mt-3 relative">
+                  <img
+                    src={program.thumbnail}
+                    alt={program.program_title || "Not Specified"}
+                    className="w-full h-40 object-cover object-center transition group-hover:scale-105 rounded-t-2xl"
+                  />
+
+                  {/* Start Countdown Pill - styled like the reference image */}
+                  {getDaysUntilStart(program) && (
+                    <span className="absolute bottom-2 right-2 bg-white text-blue-700 text-[11px] font-semibold px-3 py-1 rounded-full shadow-md border border-blue-100 tracking-tight">
+                      {getDaysUntilStart(program)}
+                    </span>
+                  )}
+                </div>
+
+                {/* Title & Description */}
+                <div className="p-4 space-y-2">
+                  <h3 className="text-lg font-bold text-gray-900 line-clamp-2">
+                    {program.program_title || "Not Specified"}
+                  </h3>
+                  <p className="text-sm text-gray-600 line-clamp-2">
+                    {program.description ||
+                      "Click to learn more about this program."}
                   </p>
-                  <p className="text-xs mt-2 font-semibold text-gray-300">
-                    Slots: {program.slots}
-                  </p>
+                </div>
+
+                {/* Bottom Section: Pills + CTA */}
+                <div className="mt-auto px-4 pb-4">
+                  {/* Pills */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full truncate max-w-full flex items-center gap-1">
+                      <FaBullseye className="h-3 w-3 flex-shrink-0 text-green-600" />
+                      {program.slots} slots
+                    </span>
+                    <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full truncate max-w-full flex items-center gap-1">
+                      <FaCalendarAlt className="h-3 w-3 flex-shrink-0 text-yellow-600" />
+                      {getProgramDate(program)}
+                    </span>
+                    <span
+                      className={`bg-gray-100 text-gray-800 text-xs font-semibold px-3 py-1 rounded-full truncate max-w-full flex items-center gap-1 ${
+                        program.program_venue ? "" : "invisible"
+                      }`}
+                    >
+                      <FaMapMarkerAlt className="h-3 w-3 flex-shrink-0 text-gray-600" />
+                      {program.program_venue || "Hidden"}
+                    </span>
+                  </div>
+
+                  {/* CTA Button */}
+                  <button className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold text-sm hover:bg-blue-700 transition">
+                    Learn More
+                  </button>
                 </div>
               </div>
             ))
+          ) : (
+            <div className="col-span-full flex flex-col items-center justify-center w-full py-12">
+              <Lottie
+                animationData={nothing_found_gif}
+                className="w-72 h-72"
+                loop={false}
+                autoplay
+              />
+              <p className="text-gray-500 mt-4 text-center text-sm">
+                No training programs found.
+              </p>
+            </div>
           )}
         </div>
       </section>

@@ -4,21 +4,26 @@ import "./index.css";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
 import { BrowserRouter as Router } from "react-router-dom";
-import { Buffer } from "buffer";
-import stream from "stream";
-import ConnectionStatus from "./ConnectionStatus";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
-window.stream = stream;
+// Register the service worker (single method)
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("/firebase-messaging-sw.js")
+    .then((registration) => {
+      console.log("Service Worker registered with scope:", registration.scope);
+    })
+    .catch((err) => {
+      console.error("Service Worker registration failed:", err);
+    });
+}
 
-window.Buffer = Buffer;
 root.render(
   <React.StrictMode>
-      <Router>
-        <ConnectionStatus />
-        <App />
-      </Router>
+    <Router>
+      <App />
+    </Router>
   </React.StrictMode>
 );
 

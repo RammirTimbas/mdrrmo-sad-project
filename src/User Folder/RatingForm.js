@@ -30,6 +30,16 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
   const [certificateStatus, setCertificateStatus] = useState(null);
   const [certificateUrl, setCertificateUrl] = useState(null);
 
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  useEffect(() => {
+    if (showTooltip) {
+      const timer = setTimeout(() => setShowTooltip(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showTooltip]);
+
   useEffect(() => {
     const checkCertificateRequest = async () => {
       try {
@@ -207,7 +217,6 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
         console.log("🔍 Certificate Request Found:", certData);
 
         if (certData.status === "approved" && certData.certificateUrl) {
-          
           onSubmit();
           // ✅ If already approved, download immediately
           window.open(certData.certificateUrl, "_blank");
@@ -336,11 +345,11 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
     }
   };
 
-
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true); // Set submitting state
+    setIsSubmitting(true); // Set submitting state\
+
+    const submittedUsername = isAnonymous ? "Anonymous" : userName;
 
     try {
       if (existingRatingId) {
@@ -352,7 +361,7 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
           existingRatingId
         );
         await updateDoc(ratingRef, {
-          username: userName,
+          username: submittedUsername,
           trainerRating,
           programRating,
           feedback,
@@ -378,6 +387,7 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
       setProgramRating(0);
       setFeedback("");
       setExistingRatingId(null);
+      setIsAnonymous(false);
 
       await requestCertificate();
       onClose(); // Close the form
@@ -454,6 +464,40 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
           Please rate both trainer and program to proceed.
         </p>
       ) : null}
+
+      <div className="relative mb-6">
+        <div className="flex items-center justify-between gap-2">
+          <div
+            className="text-gray-600 font-medium flex items-center"
+            onClick={() => setShowTooltip(!showTooltip)}
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+          >
+            Anonymous Feedback
+            <span className="ml-1 text-sm text-gray-400 cursor-help">(?)</span>
+          </div>
+
+          <div className="flex-shrink-0">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={isAnonymous}
+                onChange={() => setIsAnonymous(!isAnonymous)}
+              />
+              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-all duration-300"></div>
+              <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-md transform peer-checked:translate-x-5 transition-transform"></div>
+            </label>
+          </div>
+        </div>
+
+        {showTooltip && (
+          <div className="absolute left-0 mt-2 bg-gray-800 text-white text-sm p-2 rounded-lg shadow-md z-10 w-64">
+            Turn ON to hide your name in the feedback. Turn OFF to show your
+            name.
+          </div>
+        )}
+      </div>
 
       <button
         type="submit"

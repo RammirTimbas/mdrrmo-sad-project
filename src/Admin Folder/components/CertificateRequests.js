@@ -10,6 +10,7 @@ import {
   orderBy,
   getDoc,
   where,
+  onSnapshot,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import Swal from "sweetalert2";
@@ -39,11 +40,9 @@ const CertificateRequests = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        const querySnapshot = await getDocs(
-          query(collection(db, "Certificates"), orderBy("requestDate", "desc"))
-        );
+    const unsubscribe = onSnapshot(
+      query(collection(db, "Certificates"), orderBy("requestDate", "desc")),
+      (querySnapshot) => {
         const requestList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
@@ -53,18 +52,20 @@ const CertificateRequests = () => {
         setFilteredRequests(requestList);
 
         const uniqueBatchCodes = [
-          ...new Set(requestList.map((req) => req.batchCode).filter(Boolean)), // Filter out empty batch codes
+          ...new Set(requestList.map((req) => req.batchCode).filter(Boolean)),
         ];
 
         setBatchCodes(uniqueBatchCodes.length > 0 ? uniqueBatchCodes : []);
-      } catch (error) {
+        setLoading(false);
+      },
+      (error) => {
         console.error("Error fetching certificate requests:", error);
-      } finally {
         setLoading(false);
       }
-    };
+    );
 
-    fetchRequests();
+    // Cleanup listener on unmount
+    return () => unsubscribe();
   }, []);
 
   // 🔹 Handle Approval (Generate & Upload Certificate)

@@ -25,6 +25,10 @@
     position: relative;
   }
 
+  .no-scroll {
+    overflow: hidden;
+  }
+
   
   
   .close-button {
