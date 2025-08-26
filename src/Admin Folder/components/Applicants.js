@@ -65,7 +65,7 @@ const Applicants = ({ userId }) => {
       const q = query(
         collection(db, "Applicants"),
         where("status", "==", "pending"),
-        where("start_date", ">", new Date()), // Firestore can directly compare Timestamp fields
+        where("start_date", "<", new Date()), // Firestore can directly compare Timestamp fields
         orderBy("application_date", sortOrder === "latest" ? "desc" : "asc")
       );
 
@@ -289,7 +289,7 @@ const Applicants = ({ userId }) => {
             "error"
           );
         }
-        
+
         setIsLoading(false);
       }
     });
@@ -383,11 +383,9 @@ const Applicants = ({ userId }) => {
                     {applicant.selected_dates?.length > 0 ? (
                       applicant.selected_dates
                         .map((date) =>
-                          date?._seconds
-                            ? new Date(
-                                date._seconds * 1000
-                              ).toLocaleDateString()
-                            : "Invalid Date"
+                          date?.seconds
+                            ? new Date(date.seconds * 1000).toLocaleDateString()
+                            : new Date(date).toLocaleDateString()
                         )
                         .join(", ")
                     ) : (

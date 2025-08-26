@@ -181,7 +181,22 @@ const History = ({ userId }) => {
           });
 
           setAppliedPrograms(applied);
-          setCompletedPrograms(completed);
+
+          const completedWithCerts = await Promise.all(
+            completed.map(async (program) => {
+              const cert = await getCertificateStatus(
+                effectiveUserId,
+                program.id
+              );
+              return {
+                ...program,
+                certificateStatus: cert.status,
+                certificateUrl: cert.url || null,
+              };
+            })
+          );
+
+          setCompletedPrograms(completedWithCerts);
 
           const trainingProgramsQuery = query(
             collection(db, "Training Programs"),
@@ -232,7 +247,6 @@ const History = ({ userId }) => {
     event.stopPropagation();
     setCurrentProgramId(programId);
     setShowOverlay(true);
-    addNotification("Hey!", `haha`, "xetesRq36w8JgaiJKx4d");
   };
 
   const handleCloseOverlay = () => {
@@ -286,6 +300,27 @@ const History = ({ userId }) => {
         }
       }
     });
+  };
+
+  const getCertificateStatus = async (userId, programId) => {
+    const certQuery = query(
+      collection(db, "Certificates"),
+      where("userId", "==", userId),
+      where("programId", "==", programId)
+    );
+    const certSnapshot = await getDocs(certQuery);
+
+    if (!certSnapshot.empty) {
+      const certData = certSnapshot.docs[0].data();
+      if (certData.status === "approved" && certData.certificateUrl) {
+        return { status: "approved", url: certData.certificateUrl };
+      } else if (certData.status === "pending") {
+        return { status: "pending" };
+      } else if (certData.status === "rejected") {
+        return { status: "rejected" };
+      }
+    }
+    return { status: "not_requested" };
   };
 
   if (loading) {
@@ -757,59 +792,96 @@ const History = ({ userId }) => {
       </h3>
       {completedPrograms.length ? (
         <div className={`programs-content ${viewMode}-history`}>
-          {
-            <div className="cards-view-history">
-              {completedPrograms.map((program) => (
-                <div
-                  className="program-card-history"
-                  key={program.id}
-                  onClick={() => handleCardClick(program)}
-                >
-                  <img
-                    src={program.thumbnail || "https://via.placeholder.com/100"}
-                    alt={program.program_title}
-                    className="program-thumbnail-history"
-                  />
-                  <div className="program-info-history-completed">
-                    <h4>{program.program_title}</h4>
-                    <p>
-                      <b>Status:</b> Completed
-                    </p>
-                    <p>
-                      <b>Date(s):</b>{" "}
-                      {program.selected_dates?.length > 0 ? (
-                        program.selected_dates
-                          .map((date) =>
-                            new Date(date.seconds * 1000).toLocaleDateString()
-                          )
-                          .join(", ")
-                      ) : (
-                        <>
-                          <b>Start:</b>{" "}
-                          {new Date(
-                            program.start_date * 1000
-                          ).toLocaleDateString()}{" "}
-                          <br />
-                          <b>End:</b>{" "}
-                          {new Date(
-                            program.end_date * 1000
-                          ).toLocaleDateString()}
-                        </>
-                      )}
-                    </p>
-                    {role !== "admin" && (
-                      <button
-                        className="rate-button-history"
-                        onClick={(event) => handleRateClick(event, program)}
-                      >
-                        Request Certificate
-                      </button>
+          <div className="cards-view-history">
+            {completedPrograms.map((program) => (
+              <div
+                className="program-card-history"
+                key={program.id}
+                onClick={() => handleCardClick(program)}
+              >
+                <img
+                  src={program.thumbnail || "https://via.placeholder.com/100"}
+                  alt={program.program_title}
+                  className="program-thumbnail-history"
+                />
+                <div className="program-info-history-completed">
+                  <h4>{program.program_title}</h4>
+                  <p>
+                    <b>Status:</b> Completed
+                  </p>
+                  <p>
+                    <b>Date(s):</b>{" "}
+                    {program.selected_dates?.length > 0 ? (
+                      program.selected_dates
+                        .map((date) =>
+                          new Date(date.seconds * 1000).toLocaleDateString()
+                        )
+                        .join(", ")
+                    ) : (
+                      <>
+                        <b>Start:</b>{" "}
+                        {new Date(
+                          program.start_date * 1000
+                        ).toLocaleDateString()}{" "}
+                        <br />
+                        <b>End:</b>{" "}
+                        {new Date(program.end_date * 1000).toLocaleDateString()}
+                      </>
                     )}
-                  </div>
+                  </p>
+
+                  {/* 🔹 Always show Certificate Status */}
+                  {role !== "admin" && (
+                    <>
+                      <p>
+                        <b>Certificate Status:</b>{" "}
+                        {program.certificateStatus === "not_requested" &&
+                          "Not Requested"}
+                        {program.certificateStatus === "pending" &&
+                          "Pending Approval"}
+                        {program.certificateStatus === "rejected" && "Rejected"}
+                        {program.certificateStatus === "approved" && "Approved"}
+                      </p>
+
+                      {/* 🔹 Action Buttons */}
+                      {program.certificateStatus === "not_requested" && (
+                        <button
+                          className="rate-button-history"
+                          onClick={(event) => handleRateClick(event, program)}
+                        >
+                          Request Certificate
+                        </button>
+                      )}
+
+                      {program.certificateStatus === "pending" && (
+                        <p className="text-yellow-600 font-semibold">
+                          Certificate Pending Approval
+                        </p>
+                      )}
+
+                      {program.certificateStatus === "rejected" && (
+                        <p className="text-red-600 font-semibold">
+                          Request Rejected – Visit Office
+                        </p>
+                      )}
+
+                      {program.certificateStatus === "approved" && (
+                        <button
+                          className="rate-button-history bg-green-600 hover:bg-green-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(program.certificateUrl, "_blank");
+                          }}
+                        >
+                          Download Certificate
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
-              ))}
-            </div>
-          }
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="no-entries">

@@ -3,7 +3,14 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import "leaflet/dist/leaflet.css";
 import { db } from "./firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import L from "leaflet";
 import { Bar, Pie, Doughnut } from "react-chartjs-2";
 import { Chart, registerables } from "chart.js";
@@ -65,6 +72,7 @@ const CompletedApplicantsMap = () => {
   const CACHE_KEY = "applicantsCache";
   const CACHE_EXPIRY_KEY = "applicantsCacheExpiry";
   const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
 
   useEffect(() => {
     if (demographics) {
@@ -196,31 +204,31 @@ const CompletedApplicantsMap = () => {
           userInfoMap[doc.data().user_ID] = doc.data();
         });
 
-        // Step 4: Fetch Population Data from Firestore
-        const populationDoc = await getDocs(collection(db, "Settings"));
-        let populationData = {};
+        // Step 4: Fetch Population Data from Firestore (directly fetch the Populations doc)
+        const populationRef = doc(db, "Settings", "Populations");
+        const populationSnap = await getDoc(populationRef);
 
-        populationDoc.docs.forEach((doc) => {
-          if (doc.id === "Populations") {
-            populationData = doc.data().municipalities || {};
-          }
-        });
+        const populationData = populationSnap.exists()
+          ? populationSnap.data().municipalities || {}
+          : {};
 
         // Step 5: Compute Municipality & Barangay Statistics
         const stats = {};
+
         allApplicants.forEach((applicant) => {
           const userInfo = userInfoMap[applicant.user_id] || {};
           const municipality = userInfo.municipality || "Unknown Municipality";
           const barangay = userInfo.barangay || "Unknown Barangay";
 
-          // Get total population for the municipality (if exists)
+          // Get total population for the municipality
           const totalPopulation =
-            populationData[municipality]?.total_population || "N/A";
+            populationData[municipality]?.total_population ?? "N/A";
 
-          // Get total population for the barangay (if exists)
+          // Get total population for the barangay
           const totalBarangayPopulation =
-            populationData[municipality]?.barangays?.[barangay] || "N/A";
+            populationData[municipality]?.barangays?.[barangay] ?? "N/A";
 
+          // Initialize municipality stats if not exists
           if (!stats[municipality]) {
             stats[municipality] = {
               totalApplicants: 0,
@@ -230,6 +238,7 @@ const CompletedApplicantsMap = () => {
           }
           stats[municipality].totalApplicants++;
 
+          // Initialize barangay stats if not exists
           if (!stats[municipality].barangays[barangay]) {
             stats[municipality].barangays[barangay] = {
               applicants: 0,
@@ -239,6 +248,7 @@ const CompletedApplicantsMap = () => {
           stats[municipality].barangays[barangay].applicants++;
         });
 
+        // Set state
         setMunicipalityStats(stats);
 
         // Step 6: Process map locations
@@ -446,7 +456,8 @@ const CompletedApplicantsMap = () => {
               {Object.keys(municipalityStats).map((municipality) => {
                 const municipalityData = municipalityStats[municipality];
                 const hasMunicipalityPopulation =
-                  municipalityData.totalPopulation !== "N/A";
+                  typeof municipalityData.totalPopulation === "number" &&
+                  !isNaN(municipalityData.totalPopulation);
 
                 const municipalityCoverage = hasMunicipalityPopulation
                   ? (municipalityData.totalApplicants /
@@ -538,7 +549,9 @@ const CompletedApplicantsMap = () => {
                             const barangayData =
                               municipalityData.barangays[barangay];
                             const hasBarangayPopulation =
-                              barangayData.totalPopulation !== "N/A";
+                              typeof barangayData.totalPopulation ===
+                                "number" &&
+                              !isNaN(barangayData.totalPopulation);
 
                             const barangayCoverage = hasBarangayPopulation
                               ? (barangayData.applicants /

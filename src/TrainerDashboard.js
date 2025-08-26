@@ -1,15 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  getDoc,
-} from "firebase/firestore";
+import { collection, query, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "./firebase/firebase";
-import Swal from "sweetalert2";
 
 const TrainerDashboard = ({ userId }) => {
   const [trainerName, setTrainerName] = useState("");
@@ -23,8 +15,12 @@ const TrainerDashboard = ({ userId }) => {
     past: [],
   });
 
-  const formatDate = (timestamp) =>
-    new Date(timestamp * 1000).toLocaleDateString();
+  const formatDate = (timestamp) => {
+    if (!timestamp) return "N/A";
+    return new Date(timestamp * 1000).toLocaleDateString("en-CA", {
+      timeZone: "Asia/Manila",
+    });
+  };
 
   const categorizePrograms = () => {
     const now = Math.floor(Date.now() / 1000);
@@ -59,8 +55,10 @@ const TrainerDashboard = ({ userId }) => {
     const pastPrograms = [];
 
     trainingPrograms.forEach((program) => {
-      const startDate = program.start_date;
-      const endDate = program.end_date;
+      const startDate = program._normStart;
+      const endDate = program._normEnd;
+
+      if (!startDate || !endDate) return;
 
       if (startDate <= now && endDate >= today) {
         todayPrograms.push(program);
@@ -108,10 +106,45 @@ const TrainerDashboard = ({ userId }) => {
         const q = query(programsRef);
         const querySnapshot = await getDocs(q);
 
-        const programsData = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const programsData = querySnapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+
+          let startTs = null;
+          let endTs = null;
+
+          if (data.dateMode === "range") {
+            startTs = data.start_date ?? null;
+            endTs = data.end_date ?? null;
+          } else if (
+            data.dateMode === "specific" &&
+            Array.isArray(data.selected_dates) &&
+            data.selected_dates.length > 0
+          ) {
+            const dateSecs = data.selected_dates
+              .map((d) =>
+                d?._seconds
+                  ? d._seconds
+                  : d?.seconds
+                  ? d.seconds
+                  : typeof d === "number"
+                  ? d
+                  : null
+              )
+              .filter((s) => typeof s === "number")
+              .sort((a, b) => a - b);
+            if (dateSecs.length) {
+              startTs = dateSecs[0];
+              endTs = dateSecs[dateSecs.length - 1];
+            }
+          }
+
+          return {
+            id: docSnap.id,
+            ...data,
+            _normStart: startTs,
+            _normEnd: endTs,
+          };
+        });
 
         const filteredPrograms = programsData.filter((program) => {
           const trainers = program.trainer_assigned;
@@ -121,9 +154,12 @@ const TrainerDashboard = ({ userId }) => {
 
           const now = Math.floor(Date.now() / 1000);
           const isOngoing =
-            program.start_date <= now && now <= program.end_date + 86399;
+            program._normStart &&
+            program._normEnd &&
+            program._normStart <= now &&
+            now <= program._normEnd + 86399;
 
-          const isUpcoming = program.end_date >= now;
+          const isUpcoming = program._normEnd && program._normEnd >= now;
 
           return isTrainerAssigned && (isOngoing || isUpcoming);
         });
@@ -145,47 +181,98 @@ const TrainerDashboard = ({ userId }) => {
   }, [trainingPrograms]);
 
   return (
-    <div className="TrainerDashboard">
-      <div className="content">
-        <h2 className="section-title">Welcome, {trainerName}!</h2>
-        {Object.keys(filteredPrograms).map((category) => (
-          <div key={category}>
-            <h3 className="category-title">
-              {category.toUpperCase()} Programs
-            </h3>
-            <div className="card-container-trainer">
-              {filteredPrograms[category].length > 0 ? (
-                filteredPrograms[category].map((program) => (
-                  <div key={program.id} className="training-card">
-                    <NavLink
-                      to={`/trainer/training-program-view/${program.id}`}
-                      state={{ program }}
-                      className="card-link"
-                    >
-                      <img
-                        src={program.thumbnail}
-                        alt={program.program_title}
-                        className="thumbnail"
-                      />
-                      <div className="card-content">
-                        <h3>{program.program_title}</h3>
-                        <p>{program.description}</p>
+    <div className="p-6">
+      <h2 className="text-3xl font-bold mb-10 text-gray-800">
+        👋 Welcome,{" "}
+        <span className="text-blue-600">{trainerName || "Trainer"}</span>!
+      </h2>
+
+      {Object.keys(filteredPrograms).map((category) => (
+        <div key={category} className="mb-12">
+          <h3 className="text-xl font-semibold mb-5 text-white px-4 py-2 rounded-lg inline-block bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md">
+            {category.toUpperCase()} Programs
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-6">
+            {filteredPrograms[category].length > 0 ? (
+              filteredPrograms[category].map((program) => (
+                <NavLink
+                  key={program.id}
+                  to={`/trainer/training-program-view/${program.id}`}
+                  state={{ program }}
+                  className="block bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+                >
+                  <div className="relative">
+                    <img
+                      src={program.thumbnail}
+                      alt={program.program_title}
+                      className="w-full h-44 object-cover"
+                    />
+                    <span className="absolute top-3 right-3 bg-blue-600 text-white text-xs px-3 py-1 rounded-full shadow">
+                      {program.type || "Training"}
+                    </span>
+                  </div>
+                  <div className="p-5">
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">
+                      {program.program_title}
+                    </h3>
+                    <p className="text-gray-600 text-sm mb-3 line-clamp-3">
+                      {program.description}
+                    </p>
+
+                    {/* ✅ Show either range or individual dates */}
+                    {program.dateMode === "range" ? (
+                      <div className="text-sm text-gray-500 space-y-1">
                         <p>
                           <strong>Start:</strong>{" "}
-                          {formatDate(program.start_date)} |
-                          <strong> End:</strong> {formatDate(program.end_date)}
+                          {program._normStart
+                            ? formatDate(program._normStart)
+                            : "N/A"}
+                        </p>
+                        <p>
+                          <strong>End:</strong>{" "}
+                          {program._normEnd
+                            ? formatDate(program._normEnd)
+                            : "N/A"}
                         </p>
                       </div>
-                    </NavLink>
+                    ) : (
+                      <div className="text-sm text-gray-500 space-y-1">
+                        <p className="font-semibold">Dates:</p>
+                        <ul className="list-disc list-inside">
+                          {Array.isArray(program.selected_dates) &&
+                            program.selected_dates.map((d, idx) => {
+                              const ts =
+                                d?._seconds ??
+                                d?.seconds ??
+                                (typeof d === "number" ? d : null);
+                              return (
+                                <li key={idx}>
+                                  {ts
+                                    ? new Date(ts * 1000).toLocaleDateString(
+                                        "en-CA",
+                                        {
+                                          timeZone: "Asia/Manila",
+                                        }
+                                      )
+                                    : "Invalid Date"}
+                                </li>
+                              );
+                            })}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                ))
-              ) : (
-                <p>No programs found in this category.</p>
-              )}
-            </div>
+                </NavLink>
+              ))
+            ) : (
+              <p className="text-gray-400 italic text-sm">
+                No programs found in this category.
+              </p>
+            )}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   );
 };

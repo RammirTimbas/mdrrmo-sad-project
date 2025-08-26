@@ -658,11 +658,7 @@ const ProgramDetails = ({ userId }) => {
 
       // Compare scannedDate with today's date
       if (scannedDate !== today) {
-        Swal.fire(
-          "Error",
-          `Invalid QR Code for Today.`,
-          "error"
-        );
+        Swal.fire("Error", `Invalid QR Code for Today.`, "error");
         return;
       }
 
@@ -748,28 +744,54 @@ const ProgramDetails = ({ userId }) => {
     return dates;
   };
 
-  const dateRange = generateDateRange(programStartDate, programEndDate);
+  // 🔹 Normalize Firestore/epoch dates into JS Date
+  const normalizeDates = (program) => {
+    if (program.dateMode === "range") {
+      if (program.start_date && program.end_date) {
+        return [
+          new Date(program.start_date * 1000),
+          new Date(program.end_date * 1000),
+        ];
+      }
+    } else if (
+      program.dateMode === "specific" &&
+      Array.isArray(program.selected_dates)
+    ) {
+      return program.selected_dates
+        .map((d) => {
+          if (d?.seconds) return new Date(d.seconds * 1000);
+          if (d?._seconds) return new Date(d._seconds * 1000);
+          if (typeof d === "number") return new Date(d * 1000);
+          return new Date(d);
+        })
+        .filter((d) => !isNaN(d)) // remove invalid
+        .sort((a, b) => a - b); // keep in order
+    }
+    return [];
+  };
+
+  // 🔹 Build dateRange properly
+  const dateRange = normalizeDates(program);
 
   const getRelevantDate = (dateRange) => {
-    if (!dateRange.length) return null; // Handle empty case
+    if (!dateRange.length) return null;
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize today's date
+    today.setHours(0, 0, 0, 0);
 
     for (const date of dateRange) {
       if (today <= date) return date;
     }
-
-    return dateRange[dateRange.length - 1]; // If past all dates, return last date
+    return dateRange[dateRange.length - 1];
   };
 
   const relevantDate = getRelevantDate(dateRange);
 
   const formatDateToLocal = (date) => {
-    return date.toLocaleDateString("en-CA"); // "YYYY-MM-DD" in local time
+    if (!date) return "";
+    return date.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
   };
 
-  // Ensure relevantDate is in YYYY-MM-DD format for QR code
   const formattedRelevantDate = formatDateToLocal(relevantDate);
 
   //get attendace data
@@ -804,32 +826,103 @@ const ProgramDetails = ({ userId }) => {
   }, [program.id]);
 
   const handleDownloadAttendance = async (dateRange, program) => {
-    console.log("This: " + dateRange);
     try {
-      if (!approvedApplicants || approvedApplicants.length === 0) {
-        console.error("❌ No approved applicants available.");
+      if (
+        !program?.approved_applicants ||
+        Object.keys(program.approved_applicants).length === 0
+      ) {
+        console.error("No approved applicants available.");
         return;
       }
 
-      // 🔹 Format attendance data for each applicant
-      const allUsersAttendance = approvedApplicants.map((applicant) => ({
-        user_id: applicant.user_id,
-        full_name: applicant.full_name,
-        gender: applicant.gender || "N/A",
-        school_agency: applicant.school_agency || "N/A",
-        agency_office: applicant.office_agency || "N/A",
-        cellphone_no: applicant.cellNo || "N/A",
-        attendance: applicant.attendance || {}, // Ensure attendance field exists
-      }));
+      // 🔹 Compute valid date range
+      let startDate = null;
+      let endDate = null;
 
+      if (
+        program.dateMode === "range" &&
+        program.start_date &&
+        program.end_date
+      ) {
+        startDate = new Date(program.start_date * 1000);
+        endDate = new Date(program.end_date * 1000);
+      } else if (
+        program.dateMode === "specific" &&
+        Array.isArray(program.selected_dates) &&
+        program.selected_dates.length > 0
+      ) {
+        const dates = program.selected_dates
+          .map((d) => {
+            if (d?._seconds) return new Date(d._seconds * 1000);
+            if (d?.seconds) return new Date(d.seconds * 1000);
+            if (typeof d === "number") return new Date(d * 1000);
+            return new Date(d);
+          })
+          .filter((d) => !isNaN(d));
+
+        if (dates.length > 0) {
+          dates.sort((a, b) => a - b);
+          startDate = dates[0];
+          endDate = dates[dates.length - 1];
+        }
+      }
+
+      // 🚨 Fallback if still missing
+      if (!startDate || !endDate) {
+        console.warn("⚠️ No valid program dates, using today instead.");
+        startDate = new Date();
+        endDate = new Date();
+      }
+
+      // 🔹 Normalize date range in Manila timezone
+      const dateRange = [startDate, endDate].map((d) =>
+        d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" })
+      );
+
+      // 🔹 Convert applicants map to array
+      const allUsersAttendance = Object.values(program.approved_applicants).map(
+        (applicant) => {
+          const attendanceRecords = applicant.attendance ?? [];
+          const attendance = dateRange.map((date) => {
+            const record = attendanceRecords.find((r) => r.date === date);
+            return {
+              date,
+              remark: record?.remark ?? "absent",
+            };
+          });
+
+          return {
+            user_id: applicant.user_id,
+            full_name: applicant.full_name,
+            gender: applicant.gender || "N/A",
+            school_agency: applicant.school_agency || "N/A",
+            agency_office: applicant.office_agency || "N/A",
+            cellphone_no: applicant.cellNo || "N/A",
+            attendance,
+          };
+        }
+      );
+
+      console.log("📤 Sending to backend:", {
+        dateRange,
+        program,
+        allUsersAttendance,
+      });
+
+      // 🔹 Send to backend
       const response = await fetch(`${API_BASE_URL}/download-attendance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allUsersAttendance, dateRange, program }),
+        body: JSON.stringify({
+          allUsersAttendance,
+          dateRange,
+          program,
+        }),
       });
 
       if (!response.ok) throw new Error("Failed to generate attendance report");
 
+      // 🔹 Download file
       const blob = await response.blob();
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -956,7 +1049,6 @@ const ProgramDetails = ({ userId }) => {
       return;
     }
 
-    // confirm application
     const result = await Swal.fire({
       title: "Confirm Application",
       text: "Do you really want to apply for this program?",
@@ -969,20 +1061,27 @@ const ProgramDetails = ({ userId }) => {
 
     try {
       setIsLoading(true);
-      // IMPORTANT: check if there is slot available
+
+      // Fetch latest program snapshot
       const programRef = doc(db, "Training Programs", program.id);
       const programSnapshot = await getDoc(programRef);
+      if (!programSnapshot.exists()) {
+        Swal.fire("Error", "Program not found.", "error");
+        return;
+      }
+      const programData = programSnapshot.data();
 
-      if (!programSnapshot.exists() || programSnapshot.data().slots <= 0) {
+      // ✅ SLOT CHECK
+      if (programData.slots <= 0) {
         Swal.fire(
           "No Slots Available",
-          "Sorry, no more slots available for this program.",
+          "Sorry, no more slots available.",
           "info"
         );
         return;
       }
 
-      // IMPORTANT: check if the user has already applied
+      // ✅ DUPLICATE CHECK
       const existingApplication = await getDocs(
         query(
           collection(db, "User History"),
@@ -990,108 +1089,144 @@ const ProgramDetails = ({ userId }) => {
           where("program_id", "==", program.id)
         )
       );
-
       if (!existingApplication.empty) {
         Swal.fire(
           "Already Applied",
-          "You have already applied for this program.",
+          "You already applied for this program.",
           "info"
         );
         return;
       }
 
-      // IMPORTANT: check if the user has already applied with this date
+      // ✅ CONFLICT CHECK
+      let startDate = null;
+      let endDate = null;
+      let selectedDates = [];
+
+      if (programData.dateMode === "range") {
+        // Range mode
+        if (programData.start_date && programData.end_date) {
+          startDate = new Date(programData.start_date * 1000);
+          endDate = new Date(programData.end_date * 1000);
+        }
+      } else if (programData.dateMode === "specific") {
+        // Specific dates mode
+        if (
+          Array.isArray(programData.selected_dates) &&
+          programData.selected_dates.length > 0
+        ) {
+          selectedDates = programData.selected_dates
+            .map((d) => {
+              if (d?.seconds) return new Date(d.seconds * 1000); // Firestore Timestamp
+              if (typeof d === "number") return new Date(d * 1000); // numeric seconds
+              return new Date(d); // JS Date string or object
+            })
+            .filter((d) => !isNaN(d));
+
+          // Sort and pick earliest & latest
+          selectedDates.sort((a, b) => a - b);
+          startDate = selectedDates[0];
+          endDate = selectedDates[selectedDates.length - 1];
+        }
+      }
+
+      if (!startDate || !endDate) {
+        Swal.fire(
+          "Error",
+          "Program has no valid dates (range or selected).",
+          "error"
+        );
+        return;
+      }
+
+      // ✅ Conflict with other programs
       const conflictingPrograms = await getDocs(
         query(
           collection(db, "User History"),
           where("user_id", "==", userId),
-          where("start_date", "<=", program.end_date),
-          where("end_date", ">=", program.start_date)
+          where("start_date", "<=", endDate),
+          where("end_date", ">=", startDate)
         )
       );
-
       if (!conflictingPrograms.empty) {
         Swal.fire(
           "Conflict Detected",
-          "You have a conflicting program during the dates of this program.",
+          "You already have a program scheduled during these dates.",
           "warning"
         );
         return;
       }
 
-      // IMPORTANT: check if there is an age restriction for the program
+      // ✅ AGE CHECK
       const userInfoSnapshot = await getDocs(
         query(
           collection(db, "User Informations"),
           where("user_ID", "==", userId)
         )
       );
-
-      if (!userInfoSnapshot.empty) {
-        const userInfo = userInfoSnapshot.docs[0].data();
-        const userAge = userInfo.age; // Assuming the age is stored in the "age" field
-
-        // Retrieve the program's age restriction (if any)
-        const ageRestriction = programSnapshot.data().restriction; // Assuming restriction is the minimum age for the program
-
-        // Check if there's an age restriction and if the user's age meets the requirement
-        if (ageRestriction && userAge < ageRestriction) {
-          Swal.fire(
-            "Age Restriction",
-            `You must be at least ${ageRestriction} years old to apply for this program.`,
-            "warning"
-          );
-          return;
-        }
-
-        // if all checks passed, proceed with application
-        const applicantData = {
-          user_id: userId,
-          program_id: program.id,
-          full_name: userInfo.full_name,
-          email: userInfo.email,
-          age: userInfo.age,
-          barangay: userInfo.barangay,
-          municipality: userInfo.municipality,
-          province: userInfo.province,
-          program_title: program.program_title,
-          start_date: new Date(program.start_date * 1000),
-          end_date: new Date(program.end_date * 1000),
-          trainer_assigned: program.trainer_assigned,
-          materials_needed: program.materials_needed,
-          status: "pending",
-          application_date: new Date(),
-          uploadedRequirements: uploadedRequirements,
-        };
-
-        await setDoc(
-          doc(db, "Applicants", `${userId}_${program.id}`),
-          applicantData
-        );
-
-        const historyData = {
-          user_id: userId,
-          program_id: program.id,
-          program_title: program.program_title,
-          application_date: new Date(),
-          start_date: new Date(program.start_date * 1000),
-          end_date: new Date(program.end_date * 1000),
-          status: "pending",
-        };
-
-        await setDoc(
-          doc(db, "User History", `${userId}_${program.id}`),
-          historyData
-        );
-
-        Swal.fire(
-          "Application Successful",
-          "Your application has been successfully submitted!",
-          "success"
-        );
-      } else {
+      if (userInfoSnapshot.empty) {
         Swal.fire("Error", "User information not found.", "error");
+        return;
       }
+      const userInfo = userInfoSnapshot.docs[0].data();
+      if (programData.restriction && userInfo.age < programData.restriction) {
+        Swal.fire(
+          "Age Restriction",
+          `You must be at least ${programData.restriction} years old to apply.`,
+          "warning"
+        );
+        return;
+      }
+
+      // ✅ SAVE APPLICATION
+      const applicantData = {
+        user_id: userId,
+        program_id: program.id,
+        full_name: userInfo.full_name,
+        email: userInfo.email,
+        age: userInfo.age,
+        barangay: userInfo.barangay,
+        municipality: userInfo.municipality,
+        province: userInfo.province,
+        program_title: programData.program_title,
+        dateMode: programData.dateMode,
+        start_date: startDate,
+        end_date: endDate,
+        selected_dates: selectedDates,
+        trainer_assigned: programData.trainer_assigned,
+        materials_needed: programData.materials_needed,
+        status: "pending",
+        application_date: new Date(),
+        uploadedRequirements,
+      };
+
+      await setDoc(
+        doc(db, "Applicants", `${userId}_${program.id}`),
+        applicantData
+      );
+
+      const historyData = {
+        user_id: userId,
+        program_id: program.id,
+        program_title: programData.program_title,
+        application_date: new Date(),
+        dateMode: programData.dateMode,
+        start_date: startDate,
+        end_date: endDate,
+        selected_dates: selectedDates,
+        status: "pending",
+      };
+
+      await setDoc(
+        doc(db, "User History", `${userId}_${program.id}`),
+        historyData
+      );
+
+      Swal.fire(
+        "Application Successful",
+        "Your application has been submitted!",
+        "success"
+      );
     } catch (error) {
       console.error("Error applying for the program:", error);
       Swal.fire(
@@ -1908,10 +2043,10 @@ const ProgramDetails = ({ userId }) => {
         {showQRModal && (
           <div className="qr-modal">
             <div className="qr-code-container">
-              <h3>
-                Scan QR Code for Attendance Code:{" "}
-              </h3>
-              <p>{relevantDate.toDateString()}</p>
+              <h3>Scan QR Code for Attendance Code: </h3>
+              <p>
+                {relevantDate ? relevantDate.toDateString() : "No valid date"}
+              </p>
               <QRCodeCanvas
                 value={`${program.id}-${formattedRelevantDate}`}
                 size={256}

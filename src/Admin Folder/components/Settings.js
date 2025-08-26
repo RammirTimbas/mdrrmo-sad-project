@@ -298,6 +298,15 @@ const Settings = ({ userId }) => {
     })
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const logsPerPage = 10;
+
+  const indexOfLastLog = currentPage * logsPerPage;
+  const indexOfFirstLog = indexOfLastLog - logsPerPage;
+  const currentLogs = filteredLogs.slice(indexOfFirstLog, indexOfLastLog);
+  const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
+
+
   //verify admin password before adding a new admin
   const verifyAdminPassword = async () => {
     if (isProcessing) return;
@@ -598,40 +607,113 @@ const Settings = ({ userId }) => {
 
       {/* View Logs Tab */}
       {activeTab === "viewLogs" && (
-        <div className="view-logs">
-          <h2>Logs</h2>
-          <div className="filter-section">
-            <label htmlFor="logFilter">Filter Logs:</label>
+        <div className="view-logs mt-4">
+
+          {/* Filter/Search */}
+          <div className="mb-4">
+            <label
+              htmlFor="logFilter"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Filter Logs:
+            </label>
             <input
               type="text"
               id="logFilter"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Search by admin name, type, or action"
+              className="w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="logs-list">
-            {filteredLogs.length > 0 ? (
-              filteredLogs.map((log, index) => (
-                <div key={index} className="log-item">
-                  <p>
-                    <strong>Admin Name:</strong> {log.name}
-                  </p>
-                  <p>
-                    <strong>Type:</strong> {log.type}
-                  </p>
-                  <p>
-                    <strong>Action:</strong> {log.action}
-                  </p>
-                  <p>
-                    <strong>Date:</strong> {new Date(log.date).toLocaleString()}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p>No logs available or failed to fetch logs.</p>
-            )}
+
+          {/* Logs Table */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full border border-gray-300 rounded-lg overflow-hidden">
+              <thead className="bg-blue-100 text-gray-700">
+                <tr>
+                  {["#", "Admin Name", "Type", "Action", "Date"].map((col) => (
+                    <th
+                      key={col}
+                      className="px-4 py-2 text-sm font-semibold text-left border-b"
+                    >
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {currentLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center text-gray-500 py-6">
+                      No logs available or failed to fetch logs.
+                    </td>
+                  </tr>
+                ) : (
+                  currentLogs.map((log, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 border-b text-sm">
+                        {(currentPage - 1) * logsPerPage + index + 1}
+                      </td>
+                      <td className="px-4 py-2 border-b text-sm">{log.name}</td>
+                      <td className="px-4 py-2 border-b text-sm">{log.type}</td>
+                      <td className="px-4 py-2 border-b text-sm">
+                        {log.action}
+                      </td>
+                      <td className="px-4 py-2 border-b text-sm">
+                        {new Date(log.date).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex justify-center mt-4 space-x-2">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className={`px-3 py-1 rounded ${
+                  currentPage === 1
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                Prev
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`px-3 py-1 rounded ${
+                    currentPage === i + 1
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                }
+                disabled={currentPage === totalPages}
+                className={`px-3 py-1 rounded ${
+                  currentPage === totalPages
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       )}
 

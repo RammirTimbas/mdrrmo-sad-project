@@ -384,6 +384,7 @@ const TrainingPrograms = ({ userId }) => {
         requirements: requirementsList,
         restriction: Number(newProgram.restriction),
         batchCode: batchCode,
+        createdAt: Timestamp.now(),
       };
 
       if (newProgram.start_time) {

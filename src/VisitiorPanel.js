@@ -18,6 +18,7 @@ import {
 import nothing_found_gif from "./lottie-files-anim/no_result.json";
 import Lottie from "lottie-react";
 import Header from "./Header";
+import "./App.css";
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -50,11 +51,46 @@ const VisitorPanel = ({ onLoginClick }) => {
     category: "all",
   });
 
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+
+  const [statusFilters, setStatusFilters] = useState({
+    new: true,
+    upcoming: true,
+    slots_full: true,
+    ended: false, // default hidden
+  });
+
   const [showAccordion, setShowAccordion] = useState(false);
   const [activeTab, setActiveTab] = useState(null);
   const [showSearchFilterSection, setShowSearchFilterSection] = useState(false);
 
   const [showFilters, setShowFilters] = useState(false);
+
+  const [hideEnded, setHideEnded] = useState(false);
+
+  const sortPrograms = (programs) => {
+    const order = { new: 1, upcoming: 2, ended: 3 };
+    return [...programs].sort((a, b) => {
+      const aOrder = order[a.status] || 999;
+      const bOrder = order[b.status] || 999;
+      return aOrder - bOrder;
+    });
+  };
+
+  const getDisplayedPrograms = () => {
+    let list = [...filteredPrograms];
+
+    // 🔹 Apply "Hide Ended" toggle
+    if (hideEnded) {
+      list = list.filter((p) => p.status !== "ended");
+    }
+
+    // 🔹 Apply statusFilters checkboxes
+    list = list.filter((p) => statusFilters[p.status] ?? true);
+
+    // 🔹 Keep the sorting logic (new → upcoming → slots_full → ended)
+    return sortPrograms(list);
+  };
 
   const applyFilters = (search, filterOptions) => {
     let filtered = trainingPrograms;
@@ -333,46 +369,133 @@ const VisitorPanel = ({ onLoginClick }) => {
   };
 
   const getProgramDate = (program) => {
+    // Specific mode: use selected_dates
     if (
       Array.isArray(program.selected_dates) &&
       program.selected_dates.length > 0
     ) {
-      const sortedDates = [...program.selected_dates].sort(
-        (a, b) => a.seconds - b.seconds
-      );
-      const firstDate = sortedDates[0];
-      if (firstDate?.seconds) {
-        return new Date(firstDate.seconds * 1000).toLocaleDateString();
-      } else if (firstDate?.toDate) {
-        // fallback for Firestore Timestamp object
-        return firstDate.toDate().toLocaleDateString();
+      const sorted = [...program.selected_dates].sort((a, b) => {
+        const aSec = a.seconds ?? Math.floor(a / 1000);
+        const bSec = b.seconds ?? Math.floor(b / 1000);
+        return aSec - bSec;
+      });
+      const firstDate = sorted[0];
+      const lastDate = sorted[sorted.length - 1];
+
+      const firstStr = new Date(
+        (firstDate.seconds ?? Math.floor(firstDate / 1000)) * 1000
+      ).toLocaleDateString();
+
+      if (sorted.length > 1) {
+        const lastStr = new Date(
+          (lastDate.seconds ?? Math.floor(lastDate / 1000)) * 1000
+        ).toLocaleDateString();
+        return `${firstStr} - ${lastStr}`;
       }
+      return firstStr;
     }
 
+    // Range mode: use start_date & end_date
     if (program.start_date) {
-      return new Date(program.start_date * 1000).toLocaleDateString(); // FIXED HERE
+      const startStr = new Date(program.start_date * 1000).toLocaleDateString();
+      if (program.end_date) {
+        const endStr = new Date(program.end_date * 1000).toLocaleDateString();
+        return `${startStr} - ${endStr}`;
+      }
+      return startStr;
     }
 
     return "No Date";
   };
 
-  const getDaysUntilStart = (program) => {
-    let startTimestamp = program.start_date * 1000;
+  // Robustly convert Firestore/various date forms to milliseconds
+  const toMillis = (val) => {
+    if (!val) return null;
 
+    // Firestore Timestamp (client SDK or REST)
+    if (typeof val === "object") {
+      if (typeof val.seconds === "number") return val.seconds * 1000;
+      if (typeof val._seconds === "number") return val._seconds * 1000;
+      if (typeof val.toDate === "function") {
+        try {
+          return val.toDate().getTime();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    // Numbers (seconds or ms)
+    if (typeof val === "number") {
+      return val > 1e12 ? val : val * 1000; // if seconds, convert to ms
+    }
+
+    // Strings (e.g., "August 21, 2025 at 8:00:00 AM UTC+8")
+    if (typeof val === "string") {
+      let s = val.trim();
+      // normalize weird thin/narrow spaces and "at" word, convert timezone to +08:00
+      s = s.replace(/\u202F|\u00A0/g, " "); // non-breaking/thin spaces → normal space
+      s = s.replace(/\s+at\s+/i, " "); // " at " → " "
+      s = s.replace(/UTC\+?8\b/i, "+08:00"); // UTC+8 → +08:00
+      const t = Date.parse(s);
+      if (!Number.isNaN(t)) return t;
+    }
+
+    return null;
+  };
+
+  // Get the earliest start time (ms) considering both selected_dates and start_date
+  const getEarliestStartMs = (program) => {
+    let candidates = [];
+
+    // Specific mode: selected_dates array (of Timestamps / numbers / strings)
     if (
       Array.isArray(program.selected_dates) &&
       program.selected_dates.length > 0
     ) {
-      const sortedDates = [...program.selected_dates].sort(
-        (a, b) => a.seconds - b.seconds
-      );
-      startTimestamp = sortedDates[0].seconds * 1000;
+      const sel = program.selected_dates
+        .map(toMillis)
+        .filter((m) => typeof m === "number" && !Number.isNaN(m));
+      candidates = candidates.concat(sel);
     }
 
-    const today = new Date().setHours(0, 0, 0, 0);
-    const startDate = new Date(startTimestamp).setHours(0, 0, 0, 0);
+    // Range mode: start_date (seconds)
+    if (program.start_date) {
+      const rangeStart = toMillis(program.start_date);
+      if (rangeStart) candidates.push(rangeStart);
+    }
 
-    const diffInMs = startDate - today;
+    if (candidates.length === 0) return null;
+    return Math.min(...candidates);
+  };
+
+  // Format a date nicely (PH locale short form: e.g., Aug 21, 2025)
+  const formatShortDate = (ms) => {
+    if (!ms) return "No Date";
+    return new Date(ms).toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  // Show only the earliest date (from selected_dates OR range)
+  const getProgramDateEarliest = (program) => {
+    const earliest = getEarliestStartMs(program);
+    return earliest ? formatShortDate(earliest) : "No Date";
+  };
+
+  // Countdown to earliest start (days)
+  const getDaysUntilStart = (program) => {
+    const startMs = getEarliestStartMs(program);
+    if (!startMs) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(startMs);
+    startDate.setHours(0, 0, 0, 0);
+
+    const diffInMs = startDate.getTime() - today.getTime();
     const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24));
 
     if (diffInDays < 0) return null; // already started
@@ -464,7 +587,7 @@ const VisitorPanel = ({ onLoginClick }) => {
         )}
       </section>
 
-      {/* 🏆 Training Programs Section */}
+      {/*Training Programs Section */}
       <section
         id="training-programs"
         className="px-4 py-8 md:px-16 md:py-12 lg:py-20 bg-white"
@@ -473,6 +596,7 @@ const VisitorPanel = ({ onLoginClick }) => {
           Offered Training Programs
         </h2>
 
+        {/*Search & Filters */}
         <div className="max-w-6xl mx-auto px-4 h-32">
           <div className="flex flex-wrap gap-2 sm:gap-3 pb-2 justify-between">
             {/* Search Input - Always visible */}
@@ -541,106 +665,235 @@ const VisitorPanel = ({ onLoginClick }) => {
                 </select>
               </div>
             </div>
+            {/* Status Filter (Dropdown with checkboxes) */}
+            <div className="relative">
+              <button
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                className="pl-4 pr-4 py-2 rounded-full text-sm bg-blue-600 text-white hover:bg-blue-700 
+               focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-auto transition"
+              >
+                Status Filter
+              </button>
+
+              <AnimatePresence>
+                {showStatusDropdown && (
+                  <>
+                    {/* Mobile: Backdrop */}
+                    <motion.div
+                      className="fixed inset-0 bg-black bg-opacity-50 z-40 sm:hidden"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setShowStatusDropdown(false)} // 👈 tap outside to close
+                    />
+
+                    {/* Mobile: Bottom Sheet */}
+                    <motion.div
+                      initial={{ y: "100%" }}
+                      animate={{ y: 0 }}
+                      exit={{ y: "100%" }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 300,
+                        damping: 30,
+                      }}
+                      className="fixed bottom-0 left-0 right-0 w-full max-h-[60%] overflow-y-auto rounded-t-2xl
+                     bg-white border-t border-gray-200 shadow-lg p-4 z-50 sm:hidden"
+                    >
+                      <h3 className="text-lg font-semibold mb-3">
+                        Status Filter
+                      </h3>
+                      <div className="space-y-2">
+                        {["new", "upcoming", "slots_full", "ended"].map(
+                          (status) => (
+                            <label
+                              key={status}
+                              className="flex items-center gap-2 text-sm capitalize py-1 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={statusFilters[status]}
+                                onChange={() =>
+                                  setStatusFilters((prev) => ({
+                                    ...prev,
+                                    [status]: !prev[status],
+                                  }))
+                                }
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              {status.replace("_", " ")}
+                            </label>
+                          )
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setShowStatusDropdown(false)}
+                        className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+                      >
+                        Done
+                      </button>
+                    </motion.div>
+
+                    {/* Desktop: Dropdown */}
+                    <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-20 hidden sm:block">
+                      {["new", "upcoming", "slots_full", "ended"].map(
+                        (status) => (
+                          <label
+                            key={status}
+                            className="flex items-center gap-2 text-sm capitalize py-1 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={statusFilters[status]}
+                              onChange={() =>
+                                setStatusFilters((prev) => ({
+                                  ...prev,
+                                  [status]: !prev[status],
+                                }))
+                              }
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            {status.replace("_", " ")}
+                          </label>
+                        )
+                      )}
+                    </div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Mobile Modal for Filters */}
-          {activeFilterModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-4 rounded-lg w-[90%] max-w-sm space-y-4">
-                <h3 className="text-lg font-semibold capitalize">
-                  Select {activeFilterModal}
-                </h3>
+          <AnimatePresence>
+            {activeFilterModal && (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={closeModal} // 👈 close on outside tap
+                />
 
-                {activeFilterModal === "type" && (
-                  <select
-                    className="w-full border border-gray-300 rounded-md py-2 px-3"
-                    name="type"
-                    value={filters.type}
-                    onChange={(e) => {
-                      handleFilterChange(e);
-                      closeModal();
-                    }}
-                  >
-                    <option value="">All Types</option>
-                    {getUniqueValues("type").map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {activeFilterModal === "date" && (
-                  <input
-                    type="date"
-                    name="date"
-                    value={filters.date}
-                    onChange={(e) => {
-                      handleFilterChange(e);
-                      closeModal();
-                    }}
-                    className="w-full border border-gray-300 rounded-md py-2 px-3"
-                  />
-                )}
-
-                {activeFilterModal === "venue" && (
-                  <select
-                    className="w-full border border-gray-300 rounded-md py-2 px-3"
-                    name="venue"
-                    value={filters.venue}
-                    onChange={(e) => {
-                      handleFilterChange(e);
-                      closeModal();
-                    }}
-                  >
-                    <option value="">All Venues</option>
-                    {getUniqueValues("program_venue").map((venue) => (
-                      <option key={venue} value={venue}>
-                        {venue}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                <button
-                  onClick={closeModal}
-                  className="block w-full mt-2 text-center bg-gray-200 py-2 rounded-md hover:bg-gray-300"
+                {/* Modal Content */}
+                <motion.div
+                  className="fixed inset-0 flex items-center justify-center z-50"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
                 >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+                  <div className="bg-white p-4 rounded-lg w-[90%] max-w-sm space-y-4 shadow-lg">
+                    <h3 className="text-lg font-semibold capitalize">
+                      Select {activeFilterModal}
+                    </h3>
+
+                    {activeFilterModal === "type" && (
+                      <select
+                        className="w-full border border-gray-300 rounded-md py-2 px-3"
+                        name="type"
+                        value={filters.type}
+                        onChange={(e) => {
+                          handleFilterChange(e);
+                          closeModal();
+                        }}
+                      >
+                        <option value="">All Types</option>
+                        {getUniqueValues("type").map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {activeFilterModal === "date" && (
+                      <input
+                        type="date"
+                        name="date"
+                        value={filters.date}
+                        onChange={(e) => {
+                          handleFilterChange(e);
+                          closeModal();
+                        }}
+                        className="w-full border border-gray-300 rounded-md py-2 px-3"
+                      />
+                    )}
+
+                    {activeFilterModal === "venue" && (
+                      <select
+                        className="w-full border border-gray-300 rounded-md py-2 px-3"
+                        name="venue"
+                        value={filters.venue}
+                        onChange={(e) => {
+                          handleFilterChange(e);
+                          closeModal();
+                        }}
+                      >
+                        <option value="">All Venues</option>
+                        {getUniqueValues("program_venue").map((venue) => (
+                          <option key={venue} value={venue}>
+                            {venue}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    <button
+                      onClick={closeModal}
+                      className="block w-full mt-2 text-center bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </div>
 
+        {/*Training Programs Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 place-items-center">
-          {filteredPrograms.length > 0 ? (
-            filteredPrograms.map((program) => (
+          {getDisplayedPrograms().length > 0 ? (
+            getDisplayedPrograms().map((program) => (
               <div
                 key={program.id}
                 onClick={onLoginClick}
-                className="bg-white w-full max-w-xs rounded-2xl border border-gray-200 shadow-md overflow-hidden hover:shadow-xl hover:-translate-y-1 transform transition duration-300 flex flex-col h-[500px]" // ensure equal height
+                className="bg-white w-full max-w-xs rounded-2xl border border-gray-200 shadow-md overflow-hidden hover:shadow-xl hover:-translate-y-1 transform transition duration-300 flex flex-col h-[500px]"
               >
-                {/* Badge Row */}
-                <div className="flex items-center justify-between px-4 pt-4">
-                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 uppercase truncate max-w-[48%]">
-                    {program.type || "Not Specified"}
-                  </span>
-                  <span className="flex items-center justify-end gap-1 text-xs font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-800 capitalize truncate max-w-[48%] text-right">
-                    <FaUser className="h-3 w-3 flex-shrink-0" />
-                    {program.trainer_assigned || "Not Specified"}
-                  </span>
-                </div>
-
-                {/* Thumbnail with start badge */}
-                <div className="mt-3 relative">
+                {/* Thumbnail with Status Banner ABOVE the image */}
+                <div className="relative mt-3">
                   <img
                     src={program.thumbnail}
                     alt={program.program_title || "Not Specified"}
                     className="w-full h-40 object-cover object-center transition group-hover:scale-105 rounded-t-2xl"
                   />
 
-                  {/* Start Countdown Pill - styled like the reference image */}
+                  {/* 🔖 Status Banner */}
+                  {program.status === "new" && (
+                    <span className="absolute top-2 right-2 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                      New
+                    </span>
+                  )}
+                  {program.status === "upcoming" && (
+                    <span className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                      Upcoming
+                    </span>
+                  )}
+                  {program.status === "ended" && (
+                    <span className="absolute top-2 right-2 bg-gray-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                      Ended
+                    </span>
+                  )}
+                  {program.status === "slots_full" && (
+                    <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                      Slots Full
+                    </span>
+                  )}
+
+                  {/* Countdown Pill */}
                   {getDaysUntilStart(program) && (
                     <span className="absolute bottom-2 right-2 bg-white text-blue-700 text-[11px] font-semibold px-3 py-1 rounded-full shadow-md border border-blue-100 tracking-tight">
                       {getDaysUntilStart(program)}
@@ -659,29 +912,36 @@ const VisitorPanel = ({ onLoginClick }) => {
                   </p>
                 </div>
 
-                {/* Bottom Section: Pills + CTA */}
+                {/* Bottom Pills */}
                 <div className="mt-auto px-4 pb-4">
-                  {/* Pills */}
                   <div className="flex flex-wrap gap-2 mb-4">
-                    <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full truncate max-w-full flex items-center gap-1">
-                      <FaBullseye className="h-3 w-3 flex-shrink-0 text-green-600" />
+                    {/* Slots */}
+                    <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
+                      <FaBullseye className="h-3 w-3 text-green-600" />
                       {program.slots} slots
                     </span>
-                    <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full truncate max-w-full flex items-center gap-1">
-                      <FaCalendarAlt className="h-3 w-3 flex-shrink-0 text-yellow-600" />
-                      {getProgramDate(program)}
+                    {/* Date (earliest only) */}
+                    <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
+                      <FaCalendarAlt className="h-3 w-3 text-yellow-600" />
+                      {getProgramDateEarliest(program)}
                     </span>
-                    <span
-                      className={`bg-gray-100 text-gray-800 text-xs font-semibold px-3 py-1 rounded-full truncate max-w-full flex items-center gap-1 ${
-                        program.program_venue ? "" : "invisible"
-                      }`}
-                    >
-                      <FaMapMarkerAlt className="h-3 w-3 flex-shrink-0 text-gray-600" />
-                      {program.program_venue || "Hidden"}
-                    </span>
+                    {/* Venue */}
+                    {program.program_venue && (
+                      <span className="bg-gray-100 text-gray-800 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
+                        <FaMapMarkerAlt className="h-3 w-3 text-gray-600" />
+                        {program.program_venue}
+                      </span>
+                    )}
+                    {/* Trainer */}
+                    {program.trainer_assigned && (
+                      <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
+                        <FaUser className="h-3 w-3 text-purple-600" />
+                        {program.trainer_assigned}
+                      </span>
+                    )}
                   </div>
 
-                  {/* CTA Button */}
+                  {/* CTA */}
                   <button className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold text-sm hover:bg-blue-700 transition">
                     Learn More
                   </button>
