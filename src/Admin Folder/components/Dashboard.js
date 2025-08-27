@@ -157,9 +157,9 @@ const Dashboard = () => {
         const feedbacks = data.flatMap((program) =>
           Array.isArray(program.feedbacks) // Ensure feedbacks exist
             ? program.feedbacks.map((feedback) => ({
-                text: feedback,
-                timestamp: program.timestamp || Date.now(),
-              }))
+              text: feedback,
+              timestamp: program.timestamp || Date.now(),
+            }))
             : []
         );
 
@@ -234,7 +234,7 @@ const Dashboard = () => {
             const avgRating =
               individualRatings.length > 0
                 ? individualRatings.reduce((sum, rating) => sum + rating, 0) /
-                  individualRatings.length
+                individualRatings.length
                 : 0;
 
             // store the count of ratings for display
@@ -292,7 +292,7 @@ const Dashboard = () => {
 
         // Extract selected month & year from dropdown
         const [selectedMonthName, selectedYearString] = selectedDate.split(" ");
-        const selectedMonth = months.indexOf(selectedMonthName); // Convert month name to index
+        const selectedMonth = months.indexOf(selectedMonthName);
         const selectedYear = parseInt(selectedYearString);
 
         let completedCount = 0;
@@ -301,6 +301,7 @@ const Dashboard = () => {
         let monthlyCompletedCount = 0;
         let annualCompletedCount = 0;
 
+        const today = new Date(); // now
         const todayMidnight = new Date();
         todayMidnight.setHours(0, 0, 0, 0);
 
@@ -308,43 +309,59 @@ const Dashboard = () => {
           let programDates = [];
           let latestDate = null;
 
-          if (
-            !program.start_date &&
-            !program.end_date &&
-            program.selected_dates
-          ) {
+          // 🟢 Case 1: Programs with specific selected_dates
+          if (!program.start_date && !program.end_date && program.selected_dates) {
             programDates = program.selected_dates.map(
               (date) => new Date(date.seconds * 1000)
             );
-            latestDate = new Date(
-              Math.max(...programDates.map((d) => d.getTime()))
-            );
-          } else if (program.start_date && program.end_date) {
+
+            latestDate = new Date(Math.max(...programDates.map((d) => d.getTime())));
+            latestDate.setHours(23, 59, 59, 999); // end of that day
+
+            if (latestDate < today) {
+              completedCount++;
+            } else if (
+              programDates.some(
+                (d) => d.toDateString() === todayMidnight.toDateString()
+              )
+            ) {
+              ongoingCount++;
+            } else if (programDates.some((d) => d > todayMidnight)) {
+              notStartedCount++;
+            }
+          }
+
+          // 🟢 Case 2: Programs with a date range
+          else if (program.start_date && program.end_date) {
             const start = new Date(program.start_date * 1000);
             const end = new Date(program.end_date * 1000);
             start.setHours(0, 0, 0, 0);
-            end.setHours(0, 0, 0, 0);
-            latestDate = end;
 
+            // mark the true completion cutoff (end of end_date day)
+            const endOfEndDate = new Date(end);
+            endOfEndDate.setHours(23, 59, 59, 999);
+            latestDate = endOfEndDate;
+
+            // generate all days inside the range (for month/year checks)
             let current = new Date(start);
             while (current <= end) {
               programDates.push(new Date(current));
               current.setDate(current.getDate() + 1);
             }
 
-            if (end < todayMidnight) {
+            if (endOfEndDate < today) {
               completedCount++;
-            } else if (start <= todayMidnight && end >= todayMidnight) {
+            } else if (start <= today && endOfEndDate >= today) {
               ongoingCount++;
-            } else if (start > todayMidnight) {
+            } else if (start > today) {
               notStartedCount++;
             }
           }
 
-          // ✅ Skip if ongoing or future
-          if (latestDate && latestDate >= todayMidnight) continue;
+          // ✅ Skip ongoing/future for monthly/yearly completed
+          if (latestDate && latestDate >= today) continue;
 
-          // ✅ Monthly match
+          // ✅ Monthly match (completed only)
           if (
             programDates.some(
               (date) =>
@@ -355,10 +372,8 @@ const Dashboard = () => {
             monthlyCompletedCount++;
           }
 
-          // ✅ Annual match
-          if (
-            programDates.some((date) => date.getFullYear() === selectedYear)
-          ) {
+          // ✅ Annual match (completed only)
+          if (programDates.some((date) => date.getFullYear() === selectedYear)) {
             annualCompletedCount++;
           }
         }
@@ -378,13 +393,13 @@ const Dashboard = () => {
 
     const fetchQuotas = async () => {
       try {
-        const quotasDocRef = doc(db, "Settings", "Quotas"); // Reference the "Quotas" document inside "Settings"
+        const quotasDocRef = doc(db, "Settings", "Quotas");
         const quotasSnapshot = await getDoc(quotasDocRef);
 
         if (quotasSnapshot.exists()) {
           const quotasData = quotasSnapshot.data();
-          setMonthlyQuota(quotasData.monthlyQuota || "0"); // Default to "0" if missing
-          setAnnualQuota(quotasData.annualQuota || "0"); // Default to "0" if missing
+          setMonthlyQuota(quotasData.monthlyQuota || "0");
+          setAnnualQuota(quotasData.annualQuota || "0");
         } else {
           console.warn("No quota data found in Firestore.");
         }
@@ -396,6 +411,7 @@ const Dashboard = () => {
     fetchData();
     fetchQuotas();
   }, [selectedDate]);
+
 
   const fetchTrainingReportData = async (timeFilter) => {
     try {
@@ -582,44 +598,40 @@ const Dashboard = () => {
       <div className="mt-8">
         <div className="flex border-b">
           <button
-            className={`flex items-center gap-2 p-3 border-b-2 ${
-              activeTab === "analytics"
+            className={`flex items-center gap-2 p-3 border-b-2 ${activeTab === "analytics"
                 ? "border-blue-600 text-blue-600 bg-white"
                 : "border-gray-300 text-gray-600 bg-white"
-            }`}
+              }`}
             onClick={() => setActiveTab("analytics")}
           >
             <HiChartBar />
             Analytics
           </button>
           <button
-            className={`flex items-center gap-2 p-3 border-b-2 ${
-              activeTab === "reports"
+            className={`flex items-center gap-2 p-3 border-b-2 ${activeTab === "reports"
                 ? "border-blue-600 text-blue-600 bg-white"
                 : "border-gray-300 text-gray-600 bg-white"
-            }`}
+              }`}
             onClick={() => setActiveTab("reports")}
           >
             <HiDocumentReport />
             Reports/Quota
           </button>
           <button
-            className={`flex items-center gap-2 p-3 border-b-2 ${
-              activeTab === "decision-support"
+            className={`flex items-center gap-2 p-3 border-b-2 ${activeTab === "decision-support"
                 ? "border-blue-600 text-blue-600 bg-white"
                 : "border-gray-300 text-gray-600 bg-white"
-            }`}
+              }`}
             onClick={() => setActiveTab("decision-support")}
           >
             <HiLightBulb />
             Decision Support
           </button>
           <button
-            className={`flex items-center gap-2 p-3 border-b-2 ${
-              activeTab === "events-overview"
+            className={`flex items-center gap-2 p-3 border-b-2 ${activeTab === "events-overview"
                 ? "border-blue-600 text-blue-600 bg-white"
                 : "border-gray-300 text-gray-600 bg-white"
-            }`}
+              }`}
             onClick={() => setActiveTab("events-overview")}
           >
             <HiCalendar />
@@ -769,21 +781,19 @@ const Dashboard = () => {
               </h3>
               <div className="space-x-2">
                 <button
-                  className={`px-4 py-2 rounded ${
-                    timeFilter === "monthly"
+                  className={`px-4 py-2 rounded ${timeFilter === "monthly"
                       ? "bg-blue-600 text-white"
                       : "bg-gray-200 text-gray-700"
-                  }`}
+                    }`}
                   onClick={() => handleTimeFilterChange("monthly")}
                 >
                   Monthly
                 </button>
                 <button
-                  className={`px-4 py-2 rounded ${
-                    timeFilter === "annual"
+                  className={`px-4 py-2 rounded ${timeFilter === "annual"
                       ? "bg-blue-600 text-white"
                       : "bg-gray-200 text-gray-700"
-                  }`}
+                    }`}
                   onClick={() => handleTimeFilterChange("annual")}
                 >
                   Annual
@@ -852,8 +862,8 @@ const Dashboard = () => {
                                 <tr key={index} className="hover:bg-gray-50">
                                   {[
                                     (currentPage - 1) * itemsPerPage +
-                                      index +
-                                      1,
+                                    index +
+                                    1,
                                     "TRAINING",
                                     "LOCATION",
                                     "PARTICIPANTS",
@@ -886,11 +896,10 @@ const Dashboard = () => {
                               setCurrentPage((prev) => Math.max(prev - 1, 1))
                             }
                             disabled={currentPage === 1}
-                            className={`px-3 py-1 rounded ${
-                              currentPage === 1
+                            className={`px-3 py-1 rounded ${currentPage === 1
                                 ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                                 : "bg-blue-600 text-white hover:bg-blue-700"
-                            }`}
+                              }`}
                           >
                             Prev
                           </button>
@@ -899,11 +908,10 @@ const Dashboard = () => {
                             <button
                               key={i}
                               onClick={() => setCurrentPage(i + 1)}
-                              className={`px-3 py-1 rounded ${
-                                currentPage === i + 1
+                              className={`px-3 py-1 rounded ${currentPage === i + 1
                                   ? "bg-blue-600 text-white"
                                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                              }`}
+                                }`}
                             >
                               {i + 1}
                             </button>
@@ -916,11 +924,10 @@ const Dashboard = () => {
                               )
                             }
                             disabled={currentPage === totalPages}
-                            className={`px-3 py-1 rounded ${
-                              currentPage === totalPages
+                            className={`px-3 py-1 rounded ${currentPage === totalPages
                                 ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                                 : "bg-blue-600 text-white hover:bg-blue-700"
-                            }`}
+                              }`}
                           >
                             Next
                           </button>
@@ -1207,9 +1214,8 @@ const QuotaCard = ({
       {/* Progress Bar */}
       <div className="w-full bg-gray-300 rounded-full h-4 mt-2">
         <div
-          className={`h-4 rounded-full ${
-            isFutureDate ? "bg-gray-400" : "bg-blue-600"
-          }`}
+          className={`h-4 rounded-full ${isFutureDate ? "bg-gray-400" : "bg-blue-600"
+            }`}
           style={{ width: `${percentage}%` }}
         ></div>
       </div>
@@ -1224,11 +1230,10 @@ const QuotaCard = ({
       <button
         onClick={handleExport}
         disabled={isFutureDate}
-        className={`mt-3 px-4 py-2 rounded-md ${
-          isFutureDate
+        className={`mt-3 px-4 py-2 rounded-md ${isFutureDate
             ? "bg-gray-400 cursor-not-allowed"
             : "bg-blue-600 hover:bg-blue-700"
-        } text-white`}
+          } text-white`}
       >
         <FaDownload className="inline-block mr-2" /> Export
       </button>

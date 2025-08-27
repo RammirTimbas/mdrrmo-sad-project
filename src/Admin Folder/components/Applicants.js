@@ -58,38 +58,74 @@ const Applicants = ({ userId }) => {
   }, [userId]);
 
   // Fetch applicants
+  // Fetch applicants
   useEffect(() => {
     const fetchApplicants = () => {
-      const now = Math.floor(Date.now() / 1000); // Get current Unix timestamp
-
       const q = query(
         collection(db, "Applicants"),
         where("status", "==", "pending"),
-        where("start_date", "<", new Date()), // Firestore can directly compare Timestamp fields
         orderBy("application_date", sortOrder === "latest" ? "desc" : "asc")
       );
 
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const applicantsList = querySnapshot.docs.map((doc) => {
-          const data = doc.data();
+        const now = Math.floor(Date.now() / 1000);
+
+        const applicantsList = querySnapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+
+          let startTs = null;
+          let endTs = null;
+
+          if (data.dateMode === "range") {
+            startTs = data.start_date?.seconds ?? null;
+            endTs = data.end_date?.seconds ?? null;
+          } else if (
+            data.dateMode === "specific" &&
+            Array.isArray(data.selected_dates) &&
+            data.selected_dates.length > 0
+          ) {
+            const dates = data.selected_dates
+              .map((d) =>
+                d?.seconds ? d.seconds : typeof d === "number" ? d : null
+              )
+              .filter((s) => typeof s === "number")
+              .sort((a, b) => a - b);
+
+            if (dates.length) {
+              startTs = dates[0];
+              endTs = dates[dates.length - 1];
+            }
+          }
+
           return {
-            userId: doc.id,
+            userId: docSnap.id,
             ...data,
-            start_date: data.start_date ? data.start_date.seconds : null,
-            end_date: data.end_date ? data.end_date.seconds : null,
+            start_date: startTs,
+            end_date: endTs,
+            _normStart: startTs,
+            _normEnd: endTs,
           };
         });
 
-        setApplicantsData(applicantsList);
-        setFilteredApplicants(applicantsList);
+        // ✅ Filter: Only show programs not yet completed
+        const activeApplicants = applicantsList.filter((app) => {
+          if (!app._normStart || !app._normEnd) return false;
+          // A program is considered completed ONLY if 1 day has passed since end
+          return now <= app._normEnd + 86400;
+        });
+
+        setApplicantsData(activeApplicants);
+        setFilteredApplicants(activeApplicants);
         setLoading(false);
 
+        // collect unique programs
         setUniquePrograms([
-          ...new Set(applicantsList.map((app) => app.program_title)),
+          ...new Set(activeApplicants.map((app) => app.program_title)),
         ]);
 
+        // reset requirement indices
         const initialIndices = {};
-        applicantsList.forEach((applicant) => {
+        activeApplicants.forEach((applicant) => {
           initialIndices[applicant.userId] = 0;
         });
         setRequirementIndices(initialIndices);
@@ -100,6 +136,7 @@ const Applicants = ({ userId }) => {
 
     fetchApplicants();
   }, [sortOrder]);
+
 
   // Filter applicants based on search and program selection
   useEffect(() => {
@@ -393,14 +430,14 @@ const Applicants = ({ userId }) => {
                         <b>Start:</b>{" "}
                         {applicant.start_date
                           ? new Date(
-                              applicant.start_date * 1000
-                            ).toLocaleDateString()
+                            applicant.start_date * 1000
+                          ).toLocaleDateString()
                           : "No Date"}{" "}
                         | <b>End:</b>{" "}
                         {applicant.end_date
                           ? new Date(
-                              applicant.end_date * 1000
-                            ).toLocaleDateString()
+                            applicant.end_date * 1000
+                          ).toLocaleDateString()
                           : "No Date"}
                       </>
                     )}
@@ -458,7 +495,7 @@ const Applicants = ({ userId }) => {
 
             {/* Check if there are uploaded files */}
             {selectedApplicant.uploadedRequirements &&
-            Object.keys(selectedApplicant.uploadedRequirements).length > 0 ? (
+              Object.keys(selectedApplicant.uploadedRequirements).length > 0 ? (
               <ul className="space-y-2">
                 {Object.entries(selectedApplicant.uploadedRequirements).map(
                   ([key, url]) => (

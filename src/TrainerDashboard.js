@@ -24,52 +24,69 @@ const TrainerDashboard = ({ userId }) => {
 
   const categorizePrograms = () => {
     const now = Math.floor(Date.now() / 1000);
-    const today = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
+    const todayStart = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
+    const todayEnd = todayStart + 86399;
+
     const startOfWeek = Math.floor(
-      new Date(
-        new Date().setDate(new Date().getDate() - new Date().getDay())
-      ).setHours(0, 0, 0, 0) / 1000
+      new Date(new Date().setDate(new Date().getDate() - new Date().getDay()))
+        .setHours(0, 0, 0, 0) / 1000
     );
     const endOfWeek = startOfWeek + 6 * 86400;
+
     const startOfMonth = Math.floor(
-      new Date(new Date().getFullYear(), new Date().getMonth(), 1).setHours(
-        0,
-        0,
-        0,
-        0
-      ) / 1000
+      new Date(new Date().getFullYear(), new Date().getMonth(), 1).setHours(0, 0, 0, 0) / 1000
     );
     const endOfMonth = Math.floor(
-      new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).setHours(
-        23,
-        59,
-        59,
-        999
-      ) / 1000
+      new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).setHours(23, 59, 59, 999) / 1000
     );
 
     const todayPrograms = [];
     const weekPrograms = [];
     const monthPrograms = [];
-    const allPrograms = [];
     const pastPrograms = [];
+    const allPrograms = [];
 
     trainingPrograms.forEach((program) => {
-      const startDate = program._normStart;
-      const endDate = program._normEnd;
+      if (program.dateMode === "range") {
+        const startDate = program._normStart;
+        const endDate = program._normEnd;
 
-      if (!startDate || !endDate) return;
+        if (!startDate || !endDate) return;
 
-      if (startDate <= now && endDate >= today) {
-        todayPrograms.push(program);
-      } else if (startDate >= startOfWeek && startDate <= endOfWeek) {
-        weekPrograms.push(program);
-      } else if (startDate >= startOfMonth && startDate <= endOfMonth) {
-        monthPrograms.push(program);
-      } else if (endDate < today) {
-        pastPrograms.push(program);
-      } else {
-        allPrograms.push(program);
+        if (endDate < todayStart) {
+          pastPrograms.push(program);
+        } else if (startDate <= now && endDate >= now) {
+          todayPrograms.push(program);
+        } else if (startDate >= startOfWeek && startDate <= endOfWeek) {
+          weekPrograms.push(program);
+        } else if (startDate >= startOfMonth && startDate <= endOfMonth) {
+          monthPrograms.push(program);
+        } else {
+          allPrograms.push(program);
+        }
+      } else if (program.dateMode === "specific" && Array.isArray(program.selected_dates)) {
+        const dateSecs = program.selected_dates
+          .map((d) => d?._seconds ?? d?.seconds ?? (typeof d === "number" ? d : null))
+          .filter((s) => typeof s === "number");
+
+        if (dateSecs.length === 0) return;
+
+        const hasToday = dateSecs.some((d) => d >= todayStart && d <= todayEnd);
+        const hasThisWeek = dateSecs.some((d) => d >= startOfWeek && d <= endOfWeek);
+        const hasThisMonth = dateSecs.some((d) => d >= startOfMonth && d <= endOfMonth);
+        const allPast = dateSecs.every((d) => d < todayStart);
+
+        if (hasToday) {
+          todayPrograms.push(program);
+        } else if (hasThisWeek) {
+          weekPrograms.push(program);
+        } else if (hasThisMonth) {
+          monthPrograms.push(program);
+        } else if (allPast) {
+          pastPrograms.push(program);
+        } else {
+          allPrograms.push(program);
+        }
       }
     });
 
@@ -77,10 +94,13 @@ const TrainerDashboard = ({ userId }) => {
       today: todayPrograms,
       week: weekPrograms,
       month: monthPrograms,
-      all: allPrograms,
       past: pastPrograms,
+      all: allPrograms,
     });
   };
+
+
+
 
   useEffect(() => {
     const fetchTrainerName = async () => {
@@ -125,10 +145,10 @@ const TrainerDashboard = ({ userId }) => {
                 d?._seconds
                   ? d._seconds
                   : d?.seconds
-                  ? d.seconds
-                  : typeof d === "number"
-                  ? d
-                  : null
+                    ? d.seconds
+                    : typeof d === "number"
+                      ? d
+                      : null
               )
               .filter((s) => typeof s === "number")
               .sort((a, b) => a - b);
@@ -250,11 +270,11 @@ const TrainerDashboard = ({ userId }) => {
                                 <li key={idx}>
                                   {ts
                                     ? new Date(ts * 1000).toLocaleDateString(
-                                        "en-CA",
-                                        {
-                                          timeZone: "Asia/Manila",
-                                        }
-                                      )
+                                      "en-CA",
+                                      {
+                                        timeZone: "Asia/Manila",
+                                      }
+                                    )
                                     : "Invalid Date"}
                                 </li>
                               );
