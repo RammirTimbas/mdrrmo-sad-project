@@ -515,7 +515,7 @@ const VisitorPanel = ({ onLoginClick }) => {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full bg-white">
       <Header
         headerBackground={headerBackground}
         handleInteraction={handleInteraction}
@@ -536,56 +536,65 @@ const VisitorPanel = ({ onLoginClick }) => {
         <RegistrationForm onClose={() => setShowRegistrationForm(false)} />
       )}
 
-      {/* 🚀 Carousel Section */}
+
       <section
         id="carousel"
-        className="relative w-full h-[35vh] md:h-screen overflow-hidden"
+        className="relative w-full h-screen snap-start flex flex-col md:flex-row bg-neutral-900"
       >
-        {imgLoading ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="w-full h-full bg-gradient-to-r from-gray-300 via-gray-200 to-gray-300 animate-shimmer bg-[length:200%_100%]"></div>
+        {/* Right Panel (carousel image) - goes on top in mobile */}
+        <div className="relative w-full md:w-1/2 h-1/2 md:h-full flex items-center justify-center overflow-hidden order-1 md:order-2">
+          <AnimatePresence custom={currentImageIndex}>
+            <motion.div
+              key={currentImageIndex}
+              className="absolute inset-0 w-full h-full flex"
+              initial={{ opacity: 0, scale: 1.05 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.8, ease: "easeInOut" }}
+            >
+              <img
+                src={images[currentImageIndex]?.url}
+                alt="carousel"
+                className="w-full h-full object-cover"
+              />
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Navigation */}
+          <button
+            onClick={prevImage}
+            className="absolute left-4 top-1/2 transform -translate-y-1/2 
+        text-white text-3xl z-10 bg-black/40 hover:bg-black/60 p-2 rounded-full"
+          >
+            ❮
+          </button>
+          <button
+            onClick={nextImage}
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 
+        text-white text-3xl z-10 bg-black/40 hover:bg-black/60 p-2 rounded-full"
+          >
+            ❯
+          </button>
+        </div>
+
+        {/* Left Panel (text) - goes below on mobile */}
+        <div className="flex flex-col justify-center items-start p-8 md:p-16 w-full md:w-1/2 h-1/2 md:h-full order-2 md:order-1">
+          <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight">
+            Unleashing the Power of the Future
+          </h1>
+          <p className="text-gray-400 mt-6 max-w-md text-base md:text-lg">
+            Apply to MDRRMO training programs anytime, anywhere.
+            Our online platform makes the process faster, simpler,
+            and more convenient than ever.
+          </p>
+          <div className="mt-8 flex gap-4">
+            <button onClick={onLoginClick} className="bg-white text-black px-6 py-3 rounded-full font-semibold hover:bg-gray-200 transition">
+              Get Started
+            </button>
           </div>
-        ) : (
-          <>
-            {/* Left Arrow */}
-            <button
-              onClick={prevImage}
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white text-3xl z-10 bg-transparent p-2"
-            >
-              ❮
-            </button>
-
-            {/* Image Wrapper */}
-            <div className="relative w-full h-full overflow-hidden flex items-center">
-              <AnimatePresence custom={currentImageIndex}>
-                <motion.div
-                  key={currentImageIndex}
-                  className="absolute inset-0 w-full h-full flex"
-                  initial={{ x: "100%" }} // Start off-screen to the right
-                  animate={{ x: "0%" }} // Move to the center
-                  exit={{ x: "-100%" }} // Slide out to the left
-                  transition={{ duration: 0.8, ease: "easeInOut" }}
-                  onAnimationComplete={() => setIsAnimating(false)}
-                >
-                  <img
-                    src={images[currentImageIndex]?.url}
-                    alt="carousel"
-                    className="w-full h-full object-cover"
-                  />
-                </motion.div>
-              </AnimatePresence>
-            </div>
-
-            {/* Right Arrow */}
-            <button
-              onClick={nextImage}
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white text-3xl z-10 bg-transparent p-2"
-            >
-              ❯
-            </button>
-          </>
-        )}
+        </div>
       </section>
+
 
       {/*Training Programs Section */}
       <section
@@ -952,129 +961,116 @@ const VisitorPanel = ({ onLoginClick }) => {
             <div className="col-span-full flex flex-col items-center justify-center w-full py-12">
               <Lottie
                 animationData={nothing_found_gif}
-                className="w-72 h-72"
+                className="w-40 h-40 sm:w-56 sm:h-56 md:w-72 md:h-72"
                 loop={false}
                 autoplay
               />
-              <p className="text-gray-500 mt-4 text-center text-sm">
+              <p className="text-gray-500 mt-4 text-center text-xs sm:text-sm md:text-base">
                 No training programs found.
               </p>
             </div>
+
           )}
         </div>
       </section>
 
       <section id="mission-vision" className="max-w-4xl mx-auto my-10 px-6">
-        {/* Main Button to Show Accordion */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="w-full bg-blue-600 text-white font-semibold text-lg py-3 rounded-lg shadow-md flex items-center justify-center space-x-3 hover:bg-blue-700 transition"
-          onClick={() => setShowAccordion(!showAccordion)}
-        >
-          <span>📜 MDRRMO - DAET MISSION/VISION</span>
-        </motion.button>
+        {/* Card Wrapper */}
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          {/* Main Button to Show Accordion */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-full bg-blue-600 text-white font-semibold text-lg py-3 rounded-t-xl flex items-center justify-center space-x-3 hover:bg-blue-700 transition"
+            onClick={() => setShowAccordion(!showAccordion)}
+          >
+            <span>MDRRMO - DAET MISSION/VISION</span>
+          </motion.button>
 
-        {/* Mission & Vision Buttons */}
-        <AnimatePresence>
-          {showAccordion && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-              className="mt-4 flex flex-col space-y-2"
-            >
-              {/* Mission Button */}
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                className={`w-full py-2 text-lg font-semibold border border-gray-300 rounded-lg flex items-center justify-center space-x-2 transition ${
-                  activeTab === "mission"
-                    ? "bg-blue-500 text-white"
-                    : "bg-white text-gray-800"
-                }`}
-                onClick={() =>
-                  setActiveTab(activeTab === "mission" ? null : "mission")
-                }
+          {/* Accordion Content */}
+          <AnimatePresence>
+            {showAccordion && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="p-4 flex flex-col space-y-2"
               >
-                <FaBullseye className="text-xl" />
-                <span>Mission</span>
-              </motion.button>
+                {/* Mission Button */}
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className={`w-full py-2 text-lg font-semibold border border-gray-300 rounded-lg flex items-center justify-center space-x-2 transition ${activeTab === "mission"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-50 text-gray-800"
+                    }`}
+                  onClick={() =>
+                    setActiveTab(activeTab === "mission" ? null : "mission")
+                  }
+                >
+                  <FaBullseye className="text-xl" />
+                  <span>Mission</span>
+                </motion.button>
 
-              {/* Mission Content */}
-              <AnimatePresence>
-                {activeTab === "mission" && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="bg-white border border-gray-200 p-4 rounded-lg shadow-md overflow-hidden"
-                  >
-                    <p className="text-gray-700 text-sm leading-relaxed">
-                      ✅ Provide an efficient early warning system for
-                      calamities & disasters.
-                      <br />
-                      ✅ Ensure an effective and immediate response mechanism.
-                      <br />
-                      ✅ Deliver valuable guidance in crisis situations.
-                      <br />
-                      ✅ Maintain disaster awareness & preparedness.
-                      <br />✅ Establish a comprehensive data hub for
-                      disaster-related information.
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                {/* Mission Content */}
+                <AnimatePresence>
+                  {activeTab === "mission" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-sm"
+                    >
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        ✅ Provide an efficient early warning system... <br />
+                        ✅ Ensure an effective and immediate response mechanism...
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-              {/* Vision Button */}
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                className={`w-full py-2 text-lg font-semibold border border-gray-300 rounded-lg flex items-center justify-center space-x-2 transition ${
-                  activeTab === "vision"
-                    ? "bg-blue-500 text-white"
-                    : "bg-white text-gray-800"
-                }`}
-                onClick={() =>
-                  setActiveTab(activeTab === "vision" ? null : "vision")
-                }
-              >
-                <FaEye className="text-xl" />
-                <span>Vision</span>
-              </motion.button>
+                {/* Vision Button */}
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className={`w-full py-2 text-lg font-semibold border border-gray-300 rounded-lg flex items-center justify-center space-x-2 transition ${activeTab === "vision"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-50 text-gray-800"
+                    }`}
+                  onClick={() =>
+                    setActiveTab(activeTab === "vision" ? null : "vision")
+                  }
+                >
+                  <FaEye className="text-xl" />
+                  <span>Vision</span>
+                </motion.button>
 
-              {/* Vision Content */}
-              <AnimatePresence>
-                {activeTab === "vision" && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="bg-white border border-gray-200 p-4 rounded-lg shadow-md overflow-hidden"
-                  >
-                    <p className="text-gray-700 text-sm leading-relaxed">
-                      🎯 Build a resilient community with a culture of
-                      preparedness.
-                      <br />
-                      🎯 Lead in disaster risk reduction & emergency response.
-                      <br />
-                      🎯 Foster collaboration through education & awareness.
-                      <br />
-                      🎯 Provide top-tier emergency management services.
-                      <br />
-                      🎯 Serve as a global model for disaster resilience &
-                      safety.
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                {/* Vision Content */}
+                <AnimatePresence>
+                  {activeTab === "vision" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-sm"
+                    >
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        🎯 Build a resilient community... <br />
+                        🎯 Lead in disaster risk reduction...
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </section>
+
+
 
       <section id="footer" className="bg-blue-900 text-white py-8">
         <footer className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between">
