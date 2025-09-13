@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, query, where } from "firebase/firestore";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import TrainingProgramsPieChart from "./charts/TrainingProgramsPieChart";
@@ -28,7 +28,7 @@ import { HiChartBar, HiDocumentReport, HiLightBulb, HiCalendar } from 'react-ico
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
-const Dashboard = () => {
+const Dashboard = ({ userId }) => {
   const [date, setDate] = useState(new Date());
   const [trainingPrograms, setTrainingPrograms] = useState([]);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -51,8 +51,42 @@ const Dashboard = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
+  const [adminName, setAdminName] = useState("Admin User");
   const canvasRef = useRef(null);
+
+  // Filters state
+  const [filters, setFilters] = useState({
+    location: "",
+    training: "",
+    type: "",
+    date: "",
+    gender: "",
+  });
+
+  const [activeReportTab, setActiveReportTab] = useState("programs"); // default = Programs
+
+  // Derived filtered data (reactive table update)
+  const filteredPrograms = programData.filter((program) => {
+    return (
+      (filters.location ? program.LOCATION === filters.location : true) &&
+      (filters.training ? program.TRAINING === filters.training : true) &&
+      (filters.type ? program["TYPE OF TRAINING"] === filters.type : true) &&
+      (filters.date ? program.DATE?.includes(filters.date) : true) &&
+      (filters.gender
+        ? filters.gender === "Male"
+          ? program.MALE > 0
+          : program.FEMALE > 0
+        : true)
+    );
+  });
+
+  // Unique dropdown options from data
+  const locations = [...new Set(programData.map((p) => p.LOCATION))];
+  const trainings = [...new Set(programData.map((p) => p.TRAINING))];
+  const types = [...new Set(programData.map((p) => p["TYPE OF TRAINING"]))];
+  const dates = [...new Set(programData.map((p) => p.DATE))];
+
+
 
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState(
@@ -92,6 +126,21 @@ const Dashboard = () => {
     };
     initializeProgramData();
   }, [selectedDate]);
+
+  // Fetch admin name
+  useEffect(() => {
+    const fetchAdminName = async () => {
+      try {
+        const adminDoc = await getDoc(doc(db, "Users", userId));
+        if (adminDoc.exists()) {
+          setAdminName(adminDoc.data().name || "Admin");
+        }
+      } catch (error) {
+        console.error("Error fetching admin name:", error);
+      }
+    };
+    fetchAdminName();
+  }, [userId]);
 
   useEffect(() => {
     const fetchStopWords = async () => {
@@ -413,6 +462,189 @@ const Dashboard = () => {
   }, [selectedDate]);
 
 
+  // -------------------- PARTICIPANTS STATE --------------------
+  const [participants, setParticipants] = useState([]);
+  const [filteredParticipants, setFilteredParticipants] = useState([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+
+  const [participantFilters, setParticipantFilters] = useState({
+    municipality: "",
+    barangay: "",
+    gender: "",
+    ageGroup: "",
+    civilStatus: "",
+  });
+
+  const [currentParticipantPage, setCurrentParticipantPage] = useState(1);
+
+  // Dropdown options
+  const [municipalities, setMunicipalities] = useState([]);
+  const [barangays, setBarangays] = useState([]);
+  const [civilStatuses, setCivilStatuses] = useState([]);
+
+  // -------------------- FETCH PARTICIPANTS --------------------
+  const fetchParticipants = async () => {
+    try {
+      setParticipantsLoading(true);
+      const now = Math.floor(Date.now() / 1000);
+
+      // Step 1: Get programs that have ended
+      const programsQuery = query(
+        collection(db, "Training Programs"),
+        where("end_date", "<", now)
+      );
+      const programsSnapshot = await getDocs(programsQuery);
+      const programs = programsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      // Step 2: Collect unique approved applicants
+      const applicantMap = {};
+      programs.forEach((program) => {
+        if (program.approved_applicants) {
+          Object.values(program.approved_applicants).forEach((a) => {
+            if (a.status === "approved") {
+              if (!applicantMap[a.user_id]) {
+                applicantMap[a.user_id] = {
+                  id: a.user_id,
+                  name: a.full_name,
+                  programs: [program.program_title],
+                };
+              } else {
+                applicantMap[a.user_id].programs.push(program.program_title);
+              }
+            }
+          });
+        }
+      });
+
+      const applicants = Object.values(applicantMap);
+      if (applicants.length === 0) {
+        setParticipants([]);
+        setFilteredParticipants([]);
+        return;
+      }
+
+      // Step 3: Fetch user info
+      const userInfoQuery = query(
+        collection(db, "User Informations"),
+        where("user_ID", "in", applicants.map((a) => a.id))
+      );
+      const userInfoSnapshot = await getDocs(userInfoQuery);
+
+      const userInfoMap = {};
+      userInfoSnapshot.docs.forEach((doc) => {
+        userInfoMap[doc.data().user_ID] = doc.data();
+      });
+
+      const enrichedParticipants = applicants.map((a) => {
+        const u = userInfoMap[a.id] || {};
+        const age =
+          u.date_of_birth
+            ? new Date().getFullYear() - new Date(u.date_of_birth).getFullYear()
+            : null;
+
+        return {
+          ...a,
+          age,
+          gender: u.gender || "N/A",
+          civil_status: u.civil_status || "N/A",
+          municipality: u.municipality || "N/A",
+          barangay: u.barangay || "N/A",
+        };
+      });
+
+      // Populate filters
+      setMunicipalities([
+        ...new Set(enrichedParticipants.map((p) => p.municipality)),
+      ]);
+      setBarangays([...new Set(enrichedParticipants.map((p) => p.barangay))]);
+      setCivilStatuses([
+        ...new Set(enrichedParticipants.map((p) => p.civil_status)),
+      ]);
+
+      setParticipants(enrichedParticipants);
+      setFilteredParticipants(enrichedParticipants);
+    } catch (err) {
+      console.error("Error fetching participants:", err);
+    } finally {
+      setParticipantsLoading(false);
+    }
+  };
+
+  // -------------------- FILTER PARTICIPANTS --------------------
+  useEffect(() => {
+    let data = [...participants];
+    if (participantFilters.municipality)
+      data = data.filter((p) => p.municipality === participantFilters.municipality);
+    if (participantFilters.barangay)
+      data = data.filter((p) => p.barangay === participantFilters.barangay);
+    if (participantFilters.gender)
+      data = data.filter(
+        (p) => p.gender.toLowerCase() === participantFilters.gender.toLowerCase()
+      );
+    if (participantFilters.ageGroup) {
+      const [min, max] =
+        participantFilters.ageGroup === "56+"
+          ? [56, Infinity]
+          : participantFilters.ageGroup.split("-").map(Number);
+      data = data.filter((p) => p.age >= min && p.age <= max);
+    }
+    if (participantFilters.civilStatus)
+      data = data.filter((p) => p.civil_status === participantFilters.civilStatus);
+
+    setFilteredParticipants(data);
+    setCurrentParticipantPage(1);
+  }, [participantFilters, participants]);
+
+  // -------------------- INIT FETCH --------------------
+  useEffect(() => {
+    if (activeReportTab === "participants") {
+      fetchParticipants();
+    }
+  }, [activeReportTab]);
+
+  // -------------------- GENERATE REPORT --------------------
+  const handleGenerateParticipantReport = async () => {
+    const { value: fileName } = await Swal.fire({
+      title: "Generate Participant Report",
+      input: "text",
+      inputPlaceholder: "Enter file name",
+      showCancelButton: true,
+    });
+
+    if (!fileName) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/export-participant-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName,
+          title: fileName,
+          adminName: adminName, 
+          todayDate: new Date().toLocaleDateString(),
+          participants: filteredParticipants,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Export failed");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${fileName}.docx`;
+      link.click();
+    } catch (error) {
+      console.error("Error exporting participant report:", error);
+      Swal.fire("Error", "Failed to generate participant report.", "error");
+    }
+  };
+
+
+
   const fetchTrainingReportData = async (timeFilter) => {
     try {
       const programsCollection = collection(db, "Training Programs");
@@ -468,12 +700,16 @@ const Dashboard = () => {
         if (
           programDates.length === 0 ||
           (timeFilter === "monthly" &&
-            !programDates.some((date) => date.getMonth() === selectedMonth)) ||
+            !programDates.some((date) => date.getMonth() === selectedMonth && date.getFullYear() === selectedYear)) ||
           (timeFilter === "annual" &&
             !programDates.some((date) => date.getFullYear() === selectedYear))
+          // ✅ For "all", we skip filtering (include everything)
         ) {
-          continue;
+          if (timeFilter !== "all") {
+            continue;
+          }
         }
+
 
         let maleCount = 0;
         let femaleCount = 0;
@@ -542,6 +778,89 @@ const Dashboard = () => {
     }
   };
 
+  const handleGenerateReport = async () => {
+    const { value: formValues } = await Swal.fire({
+      title: "Generate Report",
+      html: `
+      <input id="swal-filename" class="swal2-input" placeholder="Enter file name">
+      <select id="swal-format" class="swal2-input">
+        <option value="docx">DOCX</option>
+        <option value="pdf">PDF</option>
+      </select>
+    `,
+      focusConfirm: false,
+      preConfirm: () => {
+        const fileName = document.getElementById("swal-filename").value || "Report";
+        const format = document.getElementById("swal-format").value;
+        return { fileName, format };
+      },
+      showCancelButton: true,
+    });
+
+    if (!formValues) return;
+
+    const { fileName, format } = formValues;
+
+    // 🔹 Apply filters
+    const filteredData = programData.filter((program) => {
+      return (
+        (filters.location ? program.LOCATION?.includes(filters.location) : true) &&
+        (filters.training ? program.TRAINING?.includes(filters.training) : true) &&
+        (filters.type ? program["TYPE OF TRAINING"]?.includes(filters.type) : true) &&
+        (filters.date ? program.DATE?.includes(filters.date) : true) &&
+        (filters.gender
+          ? (filters.gender === "Male" ? program.MALE > 0 : program.FEMALE > 0)
+          : true)
+      );
+    });
+
+    if (filteredData.length === 0) {
+      Swal.fire("Notice", "No data matches the selected filters.", "info");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/export-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName,
+          format,
+          title: fileName,
+          adminName: adminName, // you can replace with actual logged-in admin
+          todayDate: new Date().toLocaleDateString("en-CA"),
+          rows: filteredData.map((program, idx) => ({
+            NUMBER: idx + 1,
+            TRAINING: program.TRAINING || "N/A",
+            LOCATION: program.LOCATION || "N/A",
+            TYPE: program["TYPE OF TRAINING"] || "N/A",
+            DATE: program.DATE || "N/A",
+            MALE: program.MALE || 0,
+            FEMALE: program.FEMALE || 0,
+            TOTAL: program.TOTAL || 0,
+          })),
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to generate report.");
+
+      const blob = await response.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${fileName}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      Swal.fire("Success", "Report generated successfully!", "success");
+    } catch (error) {
+      console.error(error);
+      Swal.fire("Error", "Failed to generate report.", "error");
+    }
+  };
+
+
+
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const paginatedPrograms = programData.slice(
@@ -599,8 +918,8 @@ const Dashboard = () => {
         <div className="flex border-b">
           <button
             className={`flex items-center gap-2 p-3 border-b-2 ${activeTab === "analytics"
-                ? "border-blue-600 text-blue-600 bg-white"
-                : "border-gray-300 text-gray-600 bg-white"
+              ? "border-blue-600 text-blue-600 bg-white"
+              : "border-gray-300 text-gray-600 bg-white"
               }`}
             onClick={() => setActiveTab("analytics")}
           >
@@ -609,8 +928,8 @@ const Dashboard = () => {
           </button>
           <button
             className={`flex items-center gap-2 p-3 border-b-2 ${activeTab === "reports"
-                ? "border-blue-600 text-blue-600 bg-white"
-                : "border-gray-300 text-gray-600 bg-white"
+              ? "border-blue-600 text-blue-600 bg-white"
+              : "border-gray-300 text-gray-600 bg-white"
               }`}
             onClick={() => setActiveTab("reports")}
           >
@@ -619,8 +938,8 @@ const Dashboard = () => {
           </button>
           <button
             className={`flex items-center gap-2 p-3 border-b-2 ${activeTab === "decision-support"
-                ? "border-blue-600 text-blue-600 bg-white"
-                : "border-gray-300 text-gray-600 bg-white"
+              ? "border-blue-600 text-blue-600 bg-white"
+              : "border-gray-300 text-gray-600 bg-white"
               }`}
             onClick={() => setActiveTab("decision-support")}
           >
@@ -629,8 +948,8 @@ const Dashboard = () => {
           </button>
           <button
             className={`flex items-center gap-2 p-3 border-b-2 ${activeTab === "events-overview"
-                ? "border-blue-600 text-blue-600 bg-white"
-                : "border-gray-300 text-gray-600 bg-white"
+              ? "border-blue-600 text-blue-600 bg-white"
+              : "border-gray-300 text-gray-600 bg-white"
               }`}
             onClick={() => setActiveTab("events-overview")}
           >
@@ -774,96 +1093,178 @@ const Dashboard = () => {
               />
             </div>
 
-            {/* Time Range Toggle for Table */}
-            <div className="mt-8 flex justify-between items-center">
-              <h3 className="text-md font-semibold text-gray-700">
-                Program List
+            <div className="mt-10 mb-2 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-800">
+                Custom Report Generation
               </h3>
-              <div className="space-x-2">
-                <button
-                  className={`px-4 py-2 rounded ${timeFilter === "monthly"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-700"
-                    }`}
-                  onClick={() => handleTimeFilterChange("monthly")}
-                >
-                  Monthly
-                </button>
-                <button
-                  className={`px-4 py-2 rounded ${timeFilter === "annual"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-700"
-                    }`}
-                  onClick={() => handleTimeFilterChange("annual")}
-                >
-                  Annual
-                </button>
-              </div>
             </div>
 
-            {/* Pagination Setup */}
-            {(() => {
-              const itemsPerPage = 10;
-              const indexOfLastItem = currentPage * itemsPerPage;
-              const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-              const paginatedPrograms = programData.slice(
-                indexOfFirstItem,
-                indexOfLastItem
-              );
-              const totalPages = Math.ceil(programData.length / itemsPerPage);
+            {/* Report Tabs */}
+            <div className="flex w-full border-b border-gray-200 mb-6">
+              <button
+                onClick={() => setActiveReportTab("programs")}
+                className={`flex-1 bg-transparent border-none outline-none px-6 py-3 font-semibold text-sm md:text-base transition relative text-center
+                ${activeReportTab === "programs"
+                    ? "text-blue-600"
+                    : "text-gray-600 hover:text-blue-500"}`}
+              >
+                Programs
+                {activeReportTab === "programs" && (
+                  <span className="absolute left-0 bottom-0 w-full h-[2px] bg-blue-600 rounded"></span>
+                )}
+              </button>
 
-              return (
-                <div className="mt-4">
-                  {programDataLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                      <div className="w-48 h-48">
-                        <Lottie animationData={SubLoading} loop={true} />
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full border border-gray-300 rounded-lg overflow-hidden">
-                          <thead className="bg-blue-100 text-gray-700">
-                            <tr>
-                              {[
-                                "#",
-                                "TRAINING",
-                                "LOCATION",
-                                "PARTICIPANTS",
-                                "TYPE OF TRAINING",
-                                "DATE",
-                                "MALE",
-                                "FEMALE",
-                                "TOTAL",
-                                "REMARKS",
-                              ].map((col) => (
-                                <th
-                                  key={col}
-                                  className="px-4 py-2 text-sm font-semibold text-left border-b"
-                                >
-                                  {col}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {paginatedPrograms.length === 0 ? (
-                              <tr>
-                                <td
-                                  colSpan={10}
-                                  className="text-center text-gray-500 py-6"
-                                >
-                                  No data available.
-                                </td>
-                              </tr>
-                            ) : (
-                              paginatedPrograms.map((program, index) => (
-                                <tr key={index} className="hover:bg-gray-50">
+              <button
+                onClick={() => setActiveReportTab("participants")}
+                className={`flex-1 bg-transparent border-none outline-none px-6 py-3 font-semibold text-sm md:text-base transition relative text-center
+                ${activeReportTab === "participants"
+                    ? "text-blue-600"
+                    : "text-gray-600 hover:text-blue-500"}`}
+              >
+                Participants
+                {activeReportTab === "participants" && (
+                  <span className="absolute left-0 bottom-0 w-full h-[2px] bg-blue-600 rounded"></span>
+                )}
+              </button>
+            </div>
+
+
+            {activeReportTab === "programs" && (
+              <>
+                <div className="flex justify-end items-center mb-4 space-x-2">
+                  <button
+                    className={`px-4 py-2 rounded ${timeFilter === "monthly"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-700"
+                      }`}
+                    onClick={() => handleTimeFilterChange("monthly")}
+                  >
+                    This Month
+                  </button>
+
+                  <button
+                    className={`px-4 py-2 rounded ${timeFilter === "annual"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-700"
+                      }`}
+                    onClick={() => handleTimeFilterChange("annual")}
+                  >
+                    This Year
+                  </button>
+
+                  <button
+                    className={`px-4 py-2 rounded ${timeFilter === "all"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-700"
+                      }`}
+                    onClick={() => handleTimeFilterChange("all")}
+                  >
+                    All Time
+                  </button>
+                </div>
+
+
+                {/* Filters Section */}
+                <div className="mt-6 bg-gray-50 p-4 rounded-lg shadow-md">
+                  <h3 className="text-md font-semibold text-gray-700 mb-3">Filter Programs</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    {/* Location */}
+                    <select
+                      value={filters.location}
+                      onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Locations</option>
+                      {locations.map((loc, i) => (
+                        <option key={i} value={loc}>{loc}</option>
+                      ))}
+                    </select>
+
+                    {/* Training */}
+                    <select
+                      value={filters.training}
+                      onChange={(e) => setFilters({ ...filters, training: e.target.value })}
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Trainings</option>
+                      {trainings.map((train, i) => (
+                        <option key={i} value={train}>{train}</option>
+                      ))}
+                    </select>
+
+                    {/* Type of Training */}
+                    <select
+                      value={filters.type}
+                      onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Types</option>
+                      {types.map((t, i) => (
+                        <option key={i} value={t}>{t}</option>
+                      ))}
+                    </select>
+
+                    {/* Date */}
+                    <select
+                      value={filters.date}
+                      onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Dates</option>
+                      {dates.map((d, i) => (
+                        <option key={i} value={d}>{d}</option>
+                      ))}
+                    </select>
+
+                    {/* Gender */}
+                    <select
+                      value={filters.gender}
+                      onChange={(e) => setFilters({ ...filters, gender: e.target.value })}
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Genders</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  </div>
+
+                  {/* Generate Report Button */}
+                  <div className="mt-4 text-right">
+                    <button
+                      onClick={handleGenerateReport}
+                      className="bg-gradient-to-r from-green-500 to-green-600 text-white px-5 py-2 rounded-lg shadow hover:from-green-600 hover:to-green-700 transition"
+                    >
+                      Generate Report
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pagination Setup */}
+                {(() => {
+                  const itemsPerPage = 10;
+                  const indexOfLastItem = currentPage * itemsPerPage;
+                  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+                  const paginatedPrograms = filteredPrograms.slice(indexOfFirstItem, indexOfLastItem)
+
+                  const totalPages = Math.ceil(programData.length / itemsPerPage);
+
+                  return (
+                    <div className="mt-4">
+                      {programDataLoading ? (
+                        <div className="flex justify-center items-center h-64">
+                          <div className="w-48 h-48">
+                            <Lottie animationData={SubLoading} loop={true} />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full border border-gray-300 rounded-lg overflow-hidden">
+                              <thead className="bg-blue-100 text-gray-700">
+                                <tr>
                                   {[
-                                    (currentPage - 1) * itemsPerPage +
-                                    index +
-                                    1,
+                                    "#",
                                     "TRAINING",
                                     "LOCATION",
                                     "PARTICIPANTS",
@@ -873,71 +1274,326 @@ const Dashboard = () => {
                                     "FEMALE",
                                     "TOTAL",
                                     "REMARKS",
-                                  ].map((key, i) => (
-                                    <td
-                                      key={i}
-                                      className="px-4 py-2 border-b text-sm"
+                                  ].map((col) => (
+                                    <th
+                                      key={col}
+                                      className="px-4 py-2 text-sm font-semibold text-left border-b"
                                     >
-                                      {i === 0 ? key : program[key]}
-                                    </td>
+                                      {col}
+                                    </th>
                                   ))}
                                 </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                              </thead>
+                              <tbody>
+                                {paginatedPrograms.length === 0 ? (
+                                  <tr>
+                                    <td
+                                      colSpan={10}
+                                      className="text-center text-gray-500 py-6"
+                                    >
+                                      No data available.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  paginatedPrograms.map((program, index) => (
+                                    <tr key={index} className="hover:bg-gray-50">
+                                      {[
+                                        (currentPage - 1) * itemsPerPage +
+                                        index +
+                                        1,
+                                        "TRAINING",
+                                        "LOCATION",
+                                        "PARTICIPANTS",
+                                        "TYPE OF TRAINING",
+                                        "DATE",
+                                        "MALE",
+                                        "FEMALE",
+                                        "TOTAL",
+                                        "REMARKS",
+                                      ].map((key, i) => (
+                                        <td
+                                          key={i}
+                                          className="px-4 py-2 border-b text-sm"
+                                        >
+                                          {i === 0 ? key : program[key]}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
 
-                      {/* Pagination Controls */}
-                      {totalPages > 1 && (
-                        <div className="flex justify-center mt-4 space-x-2">
-                          <button
-                            onClick={() =>
-                              setCurrentPage((prev) => Math.max(prev - 1, 1))
-                            }
-                            disabled={currentPage === 1}
-                            className={`px-3 py-1 rounded ${currentPage === 1
-                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                : "bg-blue-600 text-white hover:bg-blue-700"
-                              }`}
-                          >
-                            Prev
-                          </button>
+                          {/* Pagination Controls */}
+                          {totalPages > 1 && (
+                            <div className="flex justify-center mt-4 space-x-2">
+                              <button
+                                onClick={() =>
+                                  setCurrentPage((prev) => Math.max(prev - 1, 1))
+                                }
+                                disabled={currentPage === 1}
+                                className={`px-3 py-1 rounded ${currentPage === 1
+                                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                  : "bg-blue-600 text-white hover:bg-blue-700"
+                                  }`}
+                              >
+                                Prev
+                              </button>
 
-                          {Array.from({ length: totalPages }, (_, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setCurrentPage(i + 1)}
-                              className={`px-3 py-1 rounded ${currentPage === i + 1
-                                  ? "bg-blue-600 text-white"
-                                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                }`}
-                            >
-                              {i + 1}
-                            </button>
-                          ))}
+                              {Array.from({ length: totalPages }, (_, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setCurrentPage(i + 1)}
+                                  className={`px-3 py-1 rounded ${currentPage === i + 1
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                    }`}
+                                >
+                                  {i + 1}
+                                </button>
+                              ))}
 
-                          <button
-                            onClick={() =>
-                              setCurrentPage((prev) =>
-                                Math.min(prev + 1, totalPages)
-                              )
-                            }
-                            disabled={currentPage === totalPages}
-                            className={`px-3 py-1 rounded ${currentPage === totalPages
-                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                : "bg-blue-600 text-white hover:bg-blue-700"
-                              }`}
-                          >
-                            Next
-                          </button>
-                        </div>
+                              <button
+                                onClick={() =>
+                                  setCurrentPage((prev) =>
+                                    Math.min(prev + 1, totalPages)
+                                  )
+                                }
+                                disabled={currentPage === totalPages}
+                                className={`px-3 py-1 rounded ${currentPage === totalPages
+                                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                  : "bg-blue-600 text-white hover:bg-blue-700"
+                                  }`}
+                              >
+                                Next
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
-                    </>
-                  )}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+
+            {activeReportTab === "participants" && (
+              <>
+                {/* Participants Filters */}
+                <div className="mt-6 bg-gray-50 p-4 rounded-lg shadow-md">
+                  <h3 className="text-md font-semibold text-gray-700 mb-3">Filter Participants</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    {/* Municipality */}
+                    <select
+                      value={participantFilters.municipality}
+                      onChange={(e) =>
+                        setParticipantFilters({ ...participantFilters, municipality: e.target.value })
+                      }
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Municipalities</option>
+                      {municipalities.map((m, i) => (
+                        <option key={i} value={m}>{m}</option>
+                      ))}
+                    </select>
+
+                    {/* Barangay */}
+                    <select
+                      value={participantFilters.barangay}
+                      onChange={(e) =>
+                        setParticipantFilters({ ...participantFilters, barangay: e.target.value })
+                      }
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Barangays</option>
+                      {barangays.map((b, i) => (
+                        <option key={i} value={b}>{b}</option>
+                      ))}
+                    </select>
+
+                    {/* Gender */}
+                    <select
+                      value={participantFilters.gender}
+                      onChange={(e) =>
+                        setParticipantFilters({ ...participantFilters, gender: e.target.value })
+                      }
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Genders</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+
+                    {/* Age Group */}
+                    <select
+                      value={participantFilters.ageGroup}
+                      onChange={(e) =>
+                        setParticipantFilters({ ...participantFilters, ageGroup: e.target.value })
+                      }
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Age Groups</option>
+                      <option value="18-25">18–25</option>
+                      <option value="26-35">26–35</option>
+                      <option value="36-45">36–45</option>
+                      <option value="46-55">46–55</option>
+                      <option value="56+">56+</option>
+                    </select>
+
+                    {/* Civil Status */}
+                    <select
+                      value={participantFilters.civilStatus}
+                      onChange={(e) =>
+                        setParticipantFilters({ ...participantFilters, civilStatus: e.target.value })
+                      }
+                      className="border rounded-lg px-3 py-2 text-sm focus:ring focus:ring-blue-200"
+                    >
+                      <option value="">All Civil Status</option>
+                      {civilStatuses.map((s, i) => (
+                        <option key={i} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Generate Report Button */}
+                  <div className="mt-4 text-right">
+                    <button
+                      onClick={handleGenerateParticipantReport}
+                      className="bg-gradient-to-r from-green-500 to-green-600 text-white px-5 py-2 rounded-lg shadow hover:from-green-600 hover:to-green-700 transition"
+                    >
+                      Generate Report
+                    </button>
+                  </div>
                 </div>
-              );
-            })()}
+
+                {/* Pagination + Table */}
+                {(() => {
+                  const itemsPerPage = 10;
+                  const indexOfLastItem = currentParticipantPage * itemsPerPage;
+                  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+                  const paginatedParticipants = filteredParticipants.slice(indexOfFirstItem, indexOfLastItem);
+
+                  const totalPages = Math.ceil(filteredParticipants.length / itemsPerPage);
+
+                  return (
+                    <div className="mt-4">
+                      {participantsLoading ? (
+                        <div className="flex justify-center items-center h-64">
+                          <div className="w-48 h-48">
+                            <Lottie animationData={SubLoading} loop={true} />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full border border-gray-300 rounded-lg overflow-hidden">
+                              <thead className="bg-blue-100 text-gray-700">
+                                <tr>
+                                  {[
+                                    "#",
+                                    "NAME",
+                                    "AGE",
+                                    "GENDER",
+                                    "CIVIL STATUS",
+                                    "MUNICIPALITY",
+                                    "BARANGAY",
+                                    "COMPLETED PROGRAMS",
+                                  ].map((col) => (
+                                    <th
+                                      key={col}
+                                      className="px-4 py-2 text-sm font-semibold text-left border-b"
+                                    >
+                                      {col}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {paginatedParticipants.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={8} className="text-center text-gray-500 py-6">
+                                      No participants found.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  paginatedParticipants.map((p, index) => (
+                                    <tr key={p.id} className="hover:bg-gray-50">
+                                      <td className="px-4 py-2 border-b text-sm">
+                                        {(currentParticipantPage - 1) * itemsPerPage + index + 1}
+                                      </td>
+                                      <td className="px-4 py-2 border-b text-sm">{p.name}</td>
+                                      <td className="px-4 py-2 border-b text-sm">{p.age || "N/A"}</td>
+                                      <td className="px-4 py-2 border-b text-sm">{p.gender}</td>
+                                      <td className="px-4 py-2 border-b text-sm">{p.civil_status}</td>
+                                      <td className="px-4 py-2 border-b text-sm">{p.municipality}</td>
+                                      <td className="px-4 py-2 border-b text-sm">{p.barangay}</td>
+                                      <td className="px-4 py-2 border-b text-sm">
+                                        {p.programs && p.programs.length > 0
+                                          ? p.programs.join(", ")
+                                          : "None"}
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Pagination Controls */}
+                          {totalPages > 1 && (
+                            <div className="flex justify-center mt-4 space-x-2">
+                              <button
+                                onClick={() =>
+                                  setCurrentParticipantPage((prev) => Math.max(prev - 1, 1))
+                                }
+                                disabled={currentParticipantPage === 1}
+                                className={`px-3 py-1 rounded ${currentParticipantPage === 1
+                                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                  : "bg-blue-600 text-white hover:bg-blue-700"
+                                  }`}
+                              >
+                                Prev
+                              </button>
+
+                              {Array.from({ length: totalPages }, (_, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setCurrentParticipantPage(i + 1)}
+                                  className={`px-3 py-1 rounded ${currentParticipantPage === i + 1
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                    }`}
+                                >
+                                  {i + 1}
+                                </button>
+                              ))}
+
+                              <button
+                                onClick={() =>
+                                  setCurrentParticipantPage((prev) =>
+                                    Math.min(prev + 1, totalPages)
+                                  )
+                                }
+                                disabled={currentParticipantPage === totalPages}
+                                className={`px-3 py-1 rounded ${currentParticipantPage === totalPages
+                                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                  : "bg-blue-600 text-white hover:bg-blue-700"
+                                  }`}
+                              >
+                                Next
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+
           </div>
         )}
 
@@ -1231,11 +1887,11 @@ const QuotaCard = ({
         onClick={handleExport}
         disabled={isFutureDate}
         className={`mt-3 px-4 py-2 rounded-md ${isFutureDate
-            ? "bg-gray-400 cursor-not-allowed"
-            : "bg-blue-600 hover:bg-blue-700"
+          ? "bg-gray-400 cursor-not-allowed"
+          : "bg-blue-600 hover:bg-blue-700"
           } text-white`}
       >
-        <FaDownload className="inline-block mr-2" /> Export
+        <FaDownload className="inline-block mr-2" /> Generate Quota Report
       </button>
 
       {/* Loading Overlay */}

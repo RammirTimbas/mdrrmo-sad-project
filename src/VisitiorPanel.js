@@ -579,17 +579,29 @@ const VisitorPanel = ({ onLoginClick }) => {
 
         {/* Left Panel (text) - goes below on mobile */}
         <div className="flex flex-col justify-center items-start p-8 md:p-16 w-full md:w-1/2 h-1/2 md:h-full order-2 md:order-1">
-          <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight">
+          <h1
+            className="text-4xl md:text-6xl font-extrabold leading-tight 
+    bg-gradient-to-r from-blue-400 via-blue-600 to-indigo-500 
+    bg-clip-text text-transparent 
+    bg-[length:200%_200%] animate-gradient"
+          >
             Unleashing the Power of the Future
           </h1>
+
+
+
           <p className="text-gray-400 mt-6 max-w-md text-base md:text-lg">
             Apply to MDRRMO training programs anytime, anywhere.
             Our online platform makes the process faster, simpler,
             and more convenient than ever.
           </p>
+
           <div className="mt-8 flex gap-4">
-            <button onClick={onLoginClick} className="bg-white text-black px-6 py-3 rounded-full font-semibold hover:bg-gray-200 transition">
-              Get Started
+            <button
+              onClick={onLoginClick}
+              className="bg-white text-black px-6 py-3 rounded-full font-semibold hover:bg-gray-200 transition"
+            >
+              Get Started!
             </button>
           </div>
         </div>
@@ -1002,8 +1014,8 @@ const VisitorPanel = ({ onLoginClick }) => {
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   className={`w-full py-2 text-lg font-semibold border border-gray-300 rounded-lg flex items-center justify-center space-x-2 transition ${activeTab === "mission"
-                      ? "bg-blue-500 text-white"
-                      : "bg-gray-50 text-gray-800"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-50 text-gray-800"
                     }`}
                   onClick={() =>
                     setActiveTab(activeTab === "mission" ? null : "mission")
@@ -1024,8 +1036,16 @@ const VisitorPanel = ({ onLoginClick }) => {
                       className="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-sm"
                     >
                       <p className="text-gray-700 text-sm leading-relaxed">
-                        ✅ Provide an efficient early warning system... <br />
-                        ✅ Ensure an effective and immediate response mechanism...
+                        1. Provide an efficient early warning system for
+                        calamities & disasters.
+                        <br />
+                        2. Ensure an effective and immediate response mechanism.
+                        <br />
+                        3. Deliver valuable guidance in crisis situations.
+                        <br />
+                        4. Maintain disaster awareness & preparedness.
+                        <br />5. Establish a comprehensive data hub for
+                        disaster-related information.
                       </p>
                     </motion.div>
                   )}
@@ -1036,8 +1056,8 @@ const VisitorPanel = ({ onLoginClick }) => {
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   className={`w-full py-2 text-lg font-semibold border border-gray-300 rounded-lg flex items-center justify-center space-x-2 transition ${activeTab === "vision"
-                      ? "bg-blue-500 text-white"
-                      : "bg-gray-50 text-gray-800"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-50 text-gray-800"
                     }`}
                   onClick={() =>
                     setActiveTab(activeTab === "vision" ? null : "vision")
@@ -1058,8 +1078,17 @@ const VisitorPanel = ({ onLoginClick }) => {
                       className="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-sm"
                     >
                       <p className="text-gray-700 text-sm leading-relaxed">
-                        🎯 Build a resilient community... <br />
-                        🎯 Lead in disaster risk reduction...
+                        1. Build a resilient community with a culture of
+                        preparedness.
+                        <br />
+                        2. Lead in disaster risk reduction & emergency response.
+                        <br />
+                        3. Foster collaboration through education & awareness.
+                        <br />
+                        4. Provide top-tier emergency management services.
+                        <br />
+                        5. Serve as a global model for disaster resilience &
+                        safety.
                       </p>
                     </motion.div>
                   )}

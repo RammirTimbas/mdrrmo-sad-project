@@ -378,14 +378,23 @@ const TrainingProgramView = () => {
 
         {/* Left Panel (text) - goes below on mobile */}
         <div className="flex flex-col justify-center items-start p-8 md:p-16 w-full md:w-1/2 h-1/2 md:h-full order-2 md:order-1">
-          <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight">
+          <h1
+            className="text-4xl md:text-6xl font-extrabold leading-tight 
+    bg-gradient-to-r from-blue-400 via-blue-600 to-indigo-500 
+    bg-clip-text text-transparent 
+    bg-[length:200%_200%] animate-gradient"
+          >
             Unleashing the Power of the Future
           </h1>
+
+
+
           <p className="text-gray-400 mt-6 max-w-md text-base md:text-lg">
             Apply to MDRRMO training programs anytime, anywhere.
             Our online platform makes the process faster, simpler,
             and more convenient than ever.
           </p>
+
           <div className="mt-8 flex gap-4">
             <button
               onClick={() => {
@@ -398,9 +407,9 @@ const TrainingProgramView = () => {
             >
               Apply Now!
             </button>
-
           </div>
         </div>
+
       </section>
 
       <section
@@ -778,47 +787,119 @@ const TrainingProgramView = () => {
         </div>
       </section>
 
-      <section id="footer" className="bg-blue-900 text-white py-8">
-        <footer className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between">
-          {/* Left Section - Info */}
-          <div className="text-center md:text-left space-y-2">
-            <p className="text-lg font-semibold">
-              &copy; {new Date().getFullYear()} MDRRMO - DAET
-            </p>
-            <p className="text-sm opacity-80">Address: Daet, Camarines Norte</p>
-            <p className="text-sm opacity-80">
-              Contact: mdrrmo.tpms.srvc@gmail.com
-            </p>
-          </div>
+      <section id="mission-vision" className="max-w-4xl mx-auto my-10 px-6">
+        {/* Card Wrapper */}
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          {/* Main Button to Show Accordion */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-full bg-blue-600 text-white font-semibold text-lg py-3 rounded-t-xl flex items-center justify-center space-x-3 hover:bg-blue-700 transition"
+            onClick={() => setShowAccordion(!showAccordion)}
+          >
+            <span>MDRRMO - DAET MISSION/VISION</span>
+          </motion.button>
 
-          {/* Right Section - Social Media */}
-          <div className="flex space-x-6 mt-4 md:mt-0">
-            <a
-              href="https://www.facebook.com/MDRRMODaetCN"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white text-2xl hover:text-blue-400 transition"
-            >
-              <i className="fab fa-facebook"></i>
-            </a>
-            <a
-              href="https://www.youtube.com/channel/UCKY978BrAw0fJFIDIiSou9A"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white text-2xl hover:text-red-500 transition"
-            >
-              <i className="fab fa-youtube"></i>
-            </a>
-            <a
-              href="https://www.mdrrmo-daet.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white text-2xl hover:text-gray-400 transition"
-            >
-              <i className="fas fa-globe"></i>
-            </a>
-          </div>
-        </footer>
+          {/* Accordion Content */}
+          <AnimatePresence>
+            {showAccordion && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="p-4 flex flex-col space-y-2"
+              >
+                {/* Mission Button */}
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className={`w-full py-2 text-lg font-semibold border border-gray-300 rounded-lg flex items-center justify-center space-x-2 transition ${activeTab === "mission"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-50 text-gray-800"
+                    }`}
+                  onClick={() =>
+                    setActiveTab(activeTab === "mission" ? null : "mission")
+                  }
+                >
+                  <FaBullseye className="text-xl" />
+                  <span>Mission</span>
+                </motion.button>
+
+                {/* Mission Content */}
+                <AnimatePresence>
+                  {activeTab === "mission" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-sm"
+                    >
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        1. Provide an efficient early warning system for
+                        calamities & disasters.
+                        <br />
+                        2. Ensure an effective and immediate response mechanism.
+                        <br />
+                        3. Deliver valuable guidance in crisis situations.
+                        <br />
+                        4. Maintain disaster awareness & preparedness.
+                        <br />5. Establish a comprehensive data hub for
+                        disaster-related information.
+                      </p>
+
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Vision Button */}
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className={`w-full py-2 text-lg font-semibold border border-gray-300 rounded-lg flex items-center justify-center space-x-2 transition ${activeTab === "vision"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-50 text-gray-800"
+                    }`}
+                  onClick={() =>
+                    setActiveTab(activeTab === "vision" ? null : "vision")
+                  }
+                >
+                  <FaEye className="text-xl" />
+                  <span>Vision</span>
+                </motion.button>
+
+                {/* Vision Content */}
+                <AnimatePresence>
+                  {activeTab === "vision" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-sm"
+                    >
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        1. Build a resilient community with a culture of
+                        preparedness.
+                        <br />
+                        2. Lead in disaster risk reduction & emergency response.
+                        <br />
+                        3. Foster collaboration through education & awareness.
+                        <br />
+                        4. Provide top-tier emergency management services.
+                        <br />
+                        5. Serve as a global model for disaster resilience &
+                        safety.
+                      </p>
+
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </section>
 
       <section id="footer" className="bg-blue-900 text-white py-8">

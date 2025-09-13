@@ -37,19 +37,17 @@ const UserPanel = ({ userId, handleSignOut }) => {
   useEffect(() => {
     if (!userId) return;
 
-    // Query unread notifications for the user
     const q = query(
       collection(db, "notifications"),
       where("user_id", "==", userId),
       where("is_read", "==", false)
     );
 
-    // Listen for real-time updates
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setHasUnread(!snapshot.empty); // If snapshot is not empty, there are unread notifications
+      setHasUnread(!snapshot.empty);
     });
 
-    return () => unsubscribe(); // Cleanup listener on unmount
+    return () => unsubscribe();
   }, [userId]);
 
   useEffect(() => {
@@ -57,9 +55,7 @@ const UserPanel = ({ userId, handleSignOut }) => {
       setLoading(true);
       try {
         const response = await fetch(`${API_BASE_URL}/api/user-info/${userId}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch user information");
-        }
+        if (!response.ok) throw new Error("Failed to fetch user information");
 
         const userInfo = await response.json();
         setUserInfo(userInfo);
@@ -73,30 +69,21 @@ const UserPanel = ({ userId, handleSignOut }) => {
     fetchUserInfo();
   }, [userId]);
 
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
   const closeSidebarOnNavLink = () => {
-    if (sidebarOpen) {
-      setSidebarOpen(false);
-    }
+    if (sidebarOpen) setSidebarOpen(false);
   };
 
   useEffect(() => {
     window.addEventListener("scroll", handleScroll);
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const handleScroll = () => {
     const carouselSection = document.getElementById("carousel");
-
     if (carouselSection) {
       const carouselPosition = carouselSection.getBoundingClientRect();
-
       if (
         carouselPosition.top <= window.innerHeight &&
         carouselPosition.bottom >= 0
@@ -117,10 +104,7 @@ const UserPanel = ({ userId, handleSignOut }) => {
       const sectionHeight = section.clientHeight;
       const scrollPosition = sectionOffsetTop + sectionHeight * 0.1;
 
-      window.scrollTo({
-        top: scrollPosition,
-        behavior: "smooth",
-      });
+      window.scrollTo({ top: scrollPosition, behavior: "smooth" });
     }
   };
 
@@ -128,132 +112,126 @@ const UserPanel = ({ userId, handleSignOut }) => {
     location.pathname === "/user/" ||
     location.pathname === "/user/training-program-view";
 
-  const isProgramDetailsRoute =
-    location.pathname.includes("/user/home/") ||
-    location.pathname.includes("/user/training-programs/");
-
   const handleLogout = () => {
     closeSidebarOnNavLink();
-
     handleSignOut();
   };
 
   return (
-    <div>
-      <div className="UserPanel">
-        <Header
-          headerBackground={headerBackground}
-          handleInteraction={toggleSidebar}
-          scrollToSection={scrollToSection}
-          showLogin={false}
-        />
+    <div className="UserPanel">
+      {/* ✅ Header always at the top */}
+      <Header
+        headerBackground={headerBackground}
+        handleInteraction={toggleSidebar}
+        scrollToSection={scrollToSection}
+        showLogin={false}
+      />
 
-        <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-          <div className="sidebar-logo flex flex-col items-center py-4">
-            <img
-              src={userInfo?.profile_picture || defaultLogo}
-              alt="User Profile"
-              className="profile-picture"
-            />
-            <h2 className="greeting">Welcome, {userInfo?.full_name}!</h2>
-            <p className="text-xs text-gray-500 text-center mt-1">
-              {userInfo?.email || "email@example.com"}
-            </p>
-          </div>
-
-          <hr />
-          <ul className="sidebar-nav">
-            <NavLink
-              to="home"
-              className={({ isActive }) =>
-                isActive || isIndexActive ? "active" : ""
-              }
-              onClick={closeSidebarOnNavLink}
-            >
-              <li className="nav-item">
-                <FaHome className="nav-icon" />
-                <span className="nav-label">Home</span>
-              </li>
-            </NavLink>
-            <NavLink
-              to="training-programs"
-              className={({ isActive }) => (isActive ? "active" : "")}
-              onClick={closeSidebarOnNavLink}
-            >
-              <li className="nav-item">
-                <FaClipboardList className="nav-icon" />
-                <span className="nav-label">My Applications</span>
-              </li>
-            </NavLink>
-            <NavLink
-              to="request-program"
-              className={({ isActive }) => (isActive ? "active" : "")}
-              onClick={closeSidebarOnNavLink}
-            >
-              <li className="nav-item">
-                <FaPlusCircle className="nav-icon" />
-                <span className="nav-label">Request Program</span>
-              </li>
-            </NavLink>
-            <NavLink
-              to="notifications"
-              className={({ isActive }) => (isActive ? "active" : "")}
-              onClick={closeSidebarOnNavLink}
-            >
-              <li className="nav-item relative">
-                <FaBell className="nav-icon" />
-                <span className="nav-label">Notifications</span>
-                {hasUnread && (
-                  <span className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-blink"></span>
-                )}
-              </li>
-            </NavLink>
-            <NavLink
-              to="chat"
-              className={({ isActive }) => (isActive ? "active" : "")}
-              onClick={closeSidebarOnNavLink}
-            >
-              <li className="nav-item relative">
-                <FaFacebookMessenger className="nav-icon" />
-                <span className="nav-label">Support</span>
-              </li>
-            </NavLink>
-            <NavLink
-              to="profile"
-              className={({ isActive }) => (isActive ? "active" : "")}
-              onClick={closeSidebarOnNavLink}
-            >
-              <li className="nav-item">
-                <FaTools className="nav-icon" />
-                <span className="nav-label">Settings</span>
-              </li>
-            </NavLink>
-            <NavLink
-              to="/"
-              className={({ isActive }) => (isActive ? "active" : "")}
-              onClick={handleLogout}
-            >
-              <li className="nav-item text-red-500">
-                <FaSignOutAlt className="nav-icon text-red-500" />
-                <span className="nav-label text-red-500">Logout</span>
-              </li>
-            </NavLink>
-          </ul>
-
-          <div className="sidebar-footer">
-            <p>&copy; {new Date().getFullYear()}</p>
-          </div>
+      {/* Sidebar */}
+      <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+        <div className="sidebar-logo flex flex-col items-center py-4">
+          <img
+            src={userInfo?.profile_picture || defaultLogo}
+            alt="User Profile"
+            className="profile-picture"
+          />
+          <h2 className="greeting">Welcome, {userInfo?.full_name}!</h2>
+          <p className="text-xs text-gray-500 text-center mt-1">
+            {userInfo?.email || "email@example.com"}
+          </p>
         </div>
 
-        {sidebarOpen && <div className="overlay" onClick={toggleSidebar}></div>}
+        <hr />
+        <ul className="sidebar-nav">
+          <NavLink
+            to="home"
+            className={({ isActive }) =>
+              isActive || isIndexActive ? "active" : ""
+            }
+            onClick={closeSidebarOnNavLink}
+          >
+            <li className="nav-item">
+              <FaHome className="nav-icon" />
+              <span className="nav-label">Home</span>
+            </li>
+          </NavLink>
+          <NavLink
+            to="training-programs"
+            className={({ isActive }) => (isActive ? "active" : "")}
+            onClick={closeSidebarOnNavLink}
+          >
+            <li className="nav-item">
+              <FaClipboardList className="nav-icon" />
+              <span className="nav-label">My Applications</span>
+            </li>
+          </NavLink>
+          <NavLink
+            to="request-program"
+            className={({ isActive }) => (isActive ? "active" : "")}
+            onClick={closeSidebarOnNavLink}
+          >
+            <li className="nav-item">
+              <FaPlusCircle className="nav-icon" />
+              <span className="nav-label">Request Program</span>
+            </li>
+          </NavLink>
+          <NavLink
+            to="notifications"
+            className={({ isActive }) => (isActive ? "active" : "")}
+            onClick={closeSidebarOnNavLink}
+          >
+            <li className="nav-item relative">
+              <FaBell className="nav-icon" />
+              <span className="nav-label">Notifications</span>
+              {hasUnread && (
+                <span className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-blink"></span>
+              )}
+            </li>
+          </NavLink>
+          <NavLink
+            to="chat"
+            className={({ isActive }) => (isActive ? "active" : "")}
+            onClick={closeSidebarOnNavLink}
+          >
+            <li className="nav-item relative">
+              <FaFacebookMessenger className="nav-icon" />
+              <span className="nav-label">Support</span>
+            </li>
+          </NavLink>
+          <NavLink
+            to="profile"
+            className={({ isActive }) => (isActive ? "active" : "")}
+            onClick={closeSidebarOnNavLink}
+          >
+            <li className="nav-item">
+              <FaTools className="nav-icon" />
+              <span className="nav-label">Settings</span>
+            </li>
+          </NavLink>
+          <NavLink
+            to="/"
+            className={({ isActive }) => (isActive ? "active" : "")}
+            onClick={handleLogout}
+          >
+            <li className="nav-item text-red-500">
+              <FaSignOutAlt className="nav-icon text-red-500" />
+              <span className="nav-label text-red-500">Logout</span>
+            </li>
+          </NavLink>
+        </ul>
 
-        <main className="admin-content">
-          <Outlet />
-          {location.pathname === "/user" && (
-            <Navigate to="training-program-view" />
-          )}
-        </main>
+        <div className="sidebar-footer">
+          <p>&copy; {new Date().getFullYear()}</p>
+        </div>
       </div>
+
+      {sidebarOpen && <div className="overlay" onClick={toggleSidebar}></div>}
+
+      {/* ✅ Add padding to avoid overlap */}
+      <main className="admin-content pt-[70px]">
+        <Outlet />
+        {location.pathname === "/user" && <Navigate to="training-program-view" />}
+      </main>
     </div>
   );
 };

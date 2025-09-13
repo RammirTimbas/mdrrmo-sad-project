@@ -104,6 +104,17 @@ const ProgramDetails = ({ userId }) => {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [activePanel, setActivePanel] = useState(0);
+  const scrollRef = useRef(null);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const scrollX = scrollRef.current.scrollLeft;
+    const width = scrollRef.current.clientWidth;
+    const index = Math.round(scrollX / width);
+    setActivePanel(index);
+  };
+
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1374,24 +1385,21 @@ const ProgramDetails = ({ userId }) => {
         <div className="program-header">
           <div className="back-button-container">
             <button
-              className="back-button bg-transparent text-red-500"
+              className="back-button bg-transparent text-red-500 text-sm sm:text-base"
               onClick={() => navigate(-1)}
             >
               ← Back
             </button>
           </div>
-          <h1 className="details-title text-2xl font-semibold text-gray-800 mt-4">
+
+          <h1 className="details-title text-xl sm:text-2xl font-semibold text-gray-800 mt-3 sm:mt-4">
             {programDetails.program_title}
           </h1>
 
-          {/* Program Details Container */}
-          <div className="flex flex-col lg:flex-row gap-6 p-6 bg-white shadow-lg rounded-xl">
+          {/* Desktop Layout */}
+          <div className="hidden lg:flex flex-row gap-6 p-6 bg-white shadow-lg rounded-xl">
             {/* Thumbnail Section */}
-            <div
-              className={`w-full mb-4 lg:w-1/3 transition-all duration-500 ${
-                showMore ? "h-auto" : "h-80"
-              }`}
-            >
+            <div className="w-1/3 h-80">
               <img
                 src={programDetails.thumbnail}
                 alt={programDetails.program_title}
@@ -1400,136 +1408,226 @@ const ProgramDetails = ({ userId }) => {
             </div>
 
             {/* Details Section */}
-            <div className="w-full lg:w-2/3 space-y-4 text-sm sm:text-base text-gray-700">
-              <div className="flex items-center gap-2">
-                <strong className="text-xl">
-                  {programDetails.program_title}
-                </strong>
-              </div>
+            <div className="w-2/3 space-y-4 text-base text-gray-700">
 
               {/* Program Description */}
               <div className="text-gray-600">
                 <strong>Description:</strong> {programDetails.description}
               </div>
 
-              {/* See More Button */}
-              <button
-                onClick={() => setShowMore(!showMore)}
-                className="bg-transparent text-blue-600 font-semibold mt-2 flex items-center gap-2"
-              >
-                <FaListUl />
-                {showMore ? "See Less..." : "See More..."}
-              </button>
+              {/* Always show the details (no See More) */}
+              <div className="space-y-2 mt-4">
+                <div className="flex items-center gap-2">
+                  <FaMapMarkerAlt className="text-gray-500" />
+                  <strong>Venue:</strong> {programDetails.program_venue || "TBA"}
+                </div>
 
-              {/* Conditional rendering for the rest of the details */}
-              <div
-                className={`transition-all duration-500 overflow-hidden ${
-                  showMore ? "max-h-screen" : "max-h-0"
-                }`}
-              >
-                <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <FaChalkboardTeacher className="text-gray-500" />
+                  <strong>Trainer:</strong> {programDetails.trainer_assigned}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <FaClipboardList className="text-gray-500" />
+                  <strong>Slots Left:</strong> {programDetails.slots}
+                </div>
+
+                {/* Dates */}
+                {programDetails.selected_dates?.length > 0 ? (
                   <div className="flex items-center gap-2">
-                    <FaMapMarkerAlt className="text-gray-500" />
-                    <strong>Venue:</strong>{" "}
-                    {programDetails.program_venue || "TBA"}
+                    <FaCalendarAlt className="text-gray-500" />
+                    <strong>Dates:</strong>{" "}
+                    {programDetails.selected_dates
+                      .map((date) =>
+                        new Date(date.seconds * 1000).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })
+                      )
+                      .join(", ")}
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <FaChalkboardTeacher className="text-gray-500" />
-                    <strong>Trainer:</strong> {programDetails.trainer_assigned}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <strong>Type:</strong> {programDetails.type}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <FaClipboardList className="text-gray-500" />
-                    <strong>Slots Left:</strong> {programDetails.slots}
-                  </div>
-
-                  {programDetails.selected_dates?.length > 0 ? (
+                ) : (
+                  <>
                     <div className="flex items-center gap-2">
                       <FaCalendarAlt className="text-gray-500" />
-                      <strong>Dates:</strong>{" "}
-                      {programDetails.selected_dates
-                        .map((date) =>
-                          new Date(date.seconds * 1000).toLocaleDateString(
-                            "en-US",
-                            {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            }
-                          )
+                      <strong>Start:</strong>{" "}
+                      {programDetails.start_date
+                        ? new Date(programDetails.start_date * 1000).toLocaleDateString(
+                          "en-US",
+                          { year: "numeric", month: "long", day: "numeric" }
                         )
-                        .join(", ")}
+                        : "N/A"}
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <FaCalendarAlt className="text-gray-500" />
-                        <strong>Start Date:</strong>{" "}
-                        {programDetails.start_date
-                          ? new Date(
-                              programDetails.start_date * 1000
-                            ).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })
-                          : "N/A"}
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <FaCalendarAlt className="text-gray-500" />
+                      <strong>End:</strong>{" "}
+                      {programDetails.end_date
+                        ? new Date(programDetails.end_date * 1000).toLocaleDateString(
+                          "en-US",
+                          { year: "numeric", month: "long", day: "numeric" }
+                        )
+                        : "N/A"}
+                    </div>
+                  </>
+                )}
 
-                      <div className="flex items-center gap-2">
-                        <FaCalendarAlt className="text-gray-500" />
-                        <strong>End Date:</strong>{" "}
-                        {programDetails.end_date
-                          ? new Date(
-                              programDetails.end_date * 1000
-                            ).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })
-                          : "N/A"}
-                      </div>
-                    </>
-                  )}
+                <div className="flex items-center gap-2">
+                  <FaRegClock className="text-gray-500" />
+                  <strong>Time:</strong>{" "}
+                  {formatTime(programDetails.start_time) || "Not specified"}
+                </div>
 
-                  <div className="flex items-center gap-2">
-                    <FaRegClock className="text-gray-500" />
-                    <strong>Time:</strong>{" "}
-                    {formatTime(programDetails.start_time) || "Not specified"}
-                  </div>
+                <div className="flex items-start gap-2">
+                  <strong>Requirements:</strong>
+                  <ul className="list-disc list-inside pl-6">
+                    {requirements.length > 0 ? (
+                      requirements.map((req, i) => <li key={i}>{req.trim()}</li>)
+                    ) : (
+                      <li>None</li>
+                    )}
+                  </ul>
+                </div>
 
-                  <div className="flex items-center gap-2">
-                    <strong>Requirements:</strong>
-                    <ul className="list-disc list-inside pl-6">
-                      {requirements.length > 0 ? (
-                        requirements.map((requirement, index) => (
-                          <li key={index}>{requirement.trim()}</li>
-                        ))
-                      ) : (
-                        <li>None</li>
-                      )}
-                    </ul>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <strong>Materials Needed:</strong> {programDetails.materials_needed}
+                </div>
 
-                  <div className="flex items-center gap-2">
-                    <strong>Materials Needed:</strong>{" "}
-                    {programDetails.materials_needed}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <strong>Minimum Age:</strong>{" "}
-                    {programDetails.restriction || "None"}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <strong>Minimum Age:</strong>{" "}
+                  {programDetails.restriction || "None"}
                 </div>
               </div>
             </div>
           </div>
+
+
+          {/* Mobile Layout */}
+          <div className="lg:hidden relative">
+            <div
+              ref={scrollRef}
+              onScroll={handleScroll}
+              className="overflow-x-auto flex snap-x snap-mandatory gap-4 pb-6 scrollbar-hide"
+            >
+              {/* Panel 1 */}
+              <div className="min-w-full snap-start bg-white rounded-xl shadow-md p-4 flex flex-col">
+                <img
+                  src={programDetails.thumbnail}
+                  alt={programDetails.program_title}
+                  className="w-full h-56 object-cover rounded-lg mb-4"
+                />
+                <h2 className="text-lg font-bold text-gray-800">
+                  {programDetails.program_title}
+                </h2>
+                <p className="text-gray-600 mt-2 text-sm">{programDetails.description}</p>
+              </div>
+
+              <div className="min-w-full snap-start bg-white rounded-xl shadow-md p-4 flex flex-col space-y-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <FaMapMarkerAlt className="text-gray-500" />
+                  <span><strong>Venue:</strong> {programDetails.program_venue || "TBA"}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <FaChalkboardTeacher className="text-gray-500" />
+                  <span><strong>Trainer:</strong> {programDetails.trainer_assigned}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <FaClipboardList className="text-gray-500" />
+                  <span><strong>Slots Left:</strong> {programDetails.slots}</span>
+                </div>
+
+                {/* Dates */}
+                {programDetails.selected_dates?.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <FaCalendarAlt className="text-gray-500" />
+                    <span>
+                      <strong>Dates:</strong>{" "}
+                      {programDetails.selected_dates
+                        .map((date) =>
+                          new Date(date.seconds * 1000).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })
+                        )
+                        .join(", ")}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <FaCalendarAlt className="text-gray-500" />
+                      <span>
+                        <strong>Start:</strong>{" "}
+                        {programDetails.start_date
+                          ? new Date(programDetails.start_date * 1000).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })
+                          : "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <FaCalendarAlt className="text-gray-500" />
+                      <span>
+                        <strong>End:</strong>{" "}
+                        {programDetails.end_date
+                          ? new Date(programDetails.end_date * 1000).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })
+                          : "N/A"}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <FaRegClock className="text-gray-500" />
+                  <span>
+                    <strong>Time:</strong> {formatTime(programDetails.start_time) || "Not specified"}
+                  </span>
+                </div>
+
+                <div>
+                  <strong>Requirements:</strong>
+                  <ul className="list-disc list-inside pl-4 mt-1">
+                    {requirements.length > 0 ? (
+                      requirements.map((req, i) => <li key={i}>{req.trim()}</li>)
+                    ) : (
+                      <li>None</li>
+                    )}
+                  </ul>
+                </div>
+
+                <div>
+                  <strong>Materials:</strong> {programDetails.materials_needed}
+                </div>
+
+                <div>
+                  <strong>Minimum Age:</strong> {programDetails.restriction || "None"}
+                </div>
+              </div>
+            </div>
+
+            {/* Custom Dots */}
+            <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2">
+              {[0, 1].map((i) => (
+                <span
+                  key={i}
+                  className={`w-3 h-3 rounded-full transition ${activePanel === i ? "bg-blue-600" : "bg-blue-300"
+                    }`}
+                ></span>
+              ))}
+            </div>
+          </div>
+
         </div>
+
 
         {/* Actions */}
         <div className="flex flex-wrap gap-3 mt-6">
@@ -1630,20 +1728,19 @@ const ProgramDetails = ({ userId }) => {
               className={`tab ${activeTab === "approved" ? "active" : ""}`}
               onClick={() => setActiveTab("approved")}
             >
-              Approved Applicants
+              Applicants
             </div>
 
             <div
-              className={`tab ${activeTab === "attendance" ? "active" : ""} ${
-                !(
-                  isUserApproved ||
-                  userRole === "admin" ||
-                  userRole === "trainer" ||
-                  requestorType?.toLowerCase() === "facilitator"
-                )
-                  ? "disabled"
-                  : ""
-              }`}
+              className={`tab ${activeTab === "attendance" ? "active" : ""} ${!(
+                isUserApproved ||
+                userRole === "admin" ||
+                userRole === "trainer" ||
+                requestorType?.toLowerCase() === "facilitator"
+              )
+                ? "disabled"
+                : ""
+                }`}
               onClick={() =>
                 (isUserApproved ||
                   userRole === "admin" ||
@@ -1653,7 +1750,7 @@ const ProgramDetails = ({ userId }) => {
               }
             >
               {userRole === "user" &&
-              requestorType?.toLowerCase() !== "facilitator"
+                requestorType?.toLowerCase() !== "facilitator"
                 ? "Your Attendance"
                 : "Attendance"}
             </div>
@@ -1665,47 +1762,45 @@ const ProgramDetails = ({ userId }) => {
               <>
                 {activeTab === "approved" && (
                   <div className="bg-gray-50">
-                    <div className="bg-white shadow-lg rounded-lg p-6">
+                    <div className="bg-white shadow-lg rounded-lg p-4 sm:p-6">
                       {approvedApplicants.length > 0 ? (
                         <div className="overflow-x-auto">
-                          <table className="min-w-full table-auto border-collapse">
+                          <table className="min-w-full border-collapse text-xs sm:text-sm">
                             <thead className="bg-gray-100">
                               <tr>
-                                <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                                <th className="px-2 sm:px-4 py-2 text-left font-medium text-gray-600">
                                   Full Name
                                 </th>
-                                <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                                <th className="px-2 sm:px-4 py-2 text-left font-medium text-gray-600">
                                   Gender
                                 </th>
-                                <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                                <th className="px-2 sm:px-4 py-2 text-left font-medium text-gray-600">
                                   School Agency
                                 </th>
-                                <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                                <th className="px-2 sm:px-4 py-2 text-left font-medium text-gray-600">
                                   Status
                                 </th>
                               </tr>
                             </thead>
                             <tbody>
                               {approvedApplicants
-                                .slice() // ✅ Create a copy before sorting to avoid modifying state directly
-                                .sort((a, b) =>
-                                  a.full_name.localeCompare(b.full_name)
-                                ) // ✅ Sort alphabetically
+                                .slice()
+                                .sort((a, b) => a.full_name.localeCompare(b.full_name))
                                 .map((applicant) => (
                                   <tr
                                     key={`${applicant.user_id}_${applicant.program_id}`}
                                     className="border-b border-gray-200 hover:bg-gray-50"
                                   >
-                                    <td className="px-4 py-3 text-sm text-gray-800">
+                                    <td className="px-2 sm:px-4 py-2 text-gray-800">
                                       {applicant.full_name}
                                     </td>
-                                    <td className="px-4 py-3 text-sm text-gray-800">
+                                    <td className="px-2 sm:px-4 py-2 text-gray-800">
                                       {applicant.gender}
                                     </td>
-                                    <td className="px-4 py-3 text-sm text-gray-800">
+                                    <td className="px-2 sm:px-4 py-2 text-gray-800">
                                       {applicant.school_agency}
                                     </td>
-                                    <td className="px-4 py-3 text-sm text-gray-800">
+                                    <td className="px-2 sm:px-4 py-2 text-gray-800">
                                       {applicant.status}
                                     </td>
                                   </tr>
@@ -1714,7 +1809,7 @@ const ProgramDetails = ({ userId }) => {
                           </table>
                         </div>
                       ) : (
-                        <p className="text-gray-600">
+                        <p className="text-gray-500 text-sm sm:text-base">
                           No approved applicants found for this program.
                         </p>
                       )}
@@ -1727,55 +1822,48 @@ const ProgramDetails = ({ userId }) => {
             {userRole === "admin" && (
               <>
                 {activeTab === "approved" && (
-                  <div className="table-container">
-                    <div className="approved-applicants">
-                      <div className="pb-2">
-                        <h2>Approved Applicants</h2>
-                        <button
-                          onClick={handleBatchCRFDownload}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
-                        >
-                          Batch Download CRF
-                        </button>
-                      </div>
-                      {approvedApplicants.length > 0 ? (
-                        <table className="applicants-table">
-                          <thead>
+                  <div className="table-container bg-white shadow-lg rounded-lg p-4 sm:p-6">
+                    <div className="pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <h2 className="text-base sm:text-lg font-semibold">Approved Applicants</h2>
+                      <button
+                        onClick={handleBatchCRFDownload}
+                        className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm hover:bg-blue-700 transition"
+                      >
+                        Batch Download CRF
+                      </button>
+                    </div>
+                    {approvedApplicants.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full border-collapse text-xs sm:text-sm">
+                          <thead className="bg-gray-100">
                             <tr>
-                              <th>Full Name</th>
-                              <th>Gender</th>
-                              <th>School Agency</th>
-                              <th>Status</th>
-                              <th>Actions</th>
+                              <th className="px-2 sm:px-4 py-2 text-left">Full Name</th>
+                              <th className="px-2 sm:px-4 py-2 text-left">Gender</th>
+                              <th className="px-2 sm:px-4 py-2 text-left">School</th>
+                              <th className="px-2 sm:px-4 py-2 text-left">Status</th>
+                              <th className="px-2 sm:px-4 py-2 text-left">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {approvedApplicants
-                              .slice() // ✅ Create a copy before sorting
-                              .sort((a, b) =>
-                                a.full_name.localeCompare(b.full_name)
-                              ) // ✅ Sort alphabetically
+                              .slice()
+                              .sort((a, b) => a.full_name.localeCompare(b.full_name))
                               .map((applicant) => (
-                                <tr
-                                  key={`${applicant.user_id}_${applicant.program_id}`}
-                                >
-                                  <td>{applicant.full_name}</td>
-                                  <td>{applicant.gender}</td>
-                                  <td>{applicant.school_agency}</td>
-                                  <td>{applicant.status}</td>
-                                  <td className="action-buttons">
+                                <tr key={`${applicant.user_id}_${applicant.program_id}`} className="border-b">
+                                  <td className="px-2 sm:px-4 py-2">{applicant.full_name}</td>
+                                  <td className="px-2 sm:px-4 py-2">{applicant.gender}</td>
+                                  <td className="px-2 sm:px-4 py-2">{applicant.school_agency}</td>
+                                  <td className="px-2 sm:px-4 py-2">{applicant.status}</td>
+                                  <td className="px-2 sm:px-4 py-2 flex flex-col sm:flex-row gap-2">
                                     <button
                                       onClick={() => handleView(applicant)}
-                                      className="approve-button"
+                                      className="bg-gray-200 px-2 py-1 rounded-md text-xs sm:text-sm hover:bg-gray-300"
                                     >
                                       View History
                                     </button>
                                     <button
-                                      onClick={() =>
-                                        handleDownloadCRF(applicant)
-                                      }
-                                      className="approve-button"
-                                      style={{ backgroundColor: "#2309e9" }}
+                                      onClick={() => handleDownloadCRF(applicant)}
+                                      className="bg-blue-600 text-white px-2 py-1 rounded-md text-xs sm:text-sm hover:bg-blue-700"
                                     >
                                       Download CRF
                                     </button>
@@ -1784,186 +1872,161 @@ const ProgramDetails = ({ userId }) => {
                               ))}
                           </tbody>
                         </table>
-                      ) : (
-                        <p>No approved applicants found for this program.</p>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No approved applicants found.</p>
+                    )}
                   </div>
                 )}
               </>
             )}
 
             {activeTab === "attendance" && (
-              <div className="table-container">
+              <div className="table-container bg-white shadow-lg rounded-lg p-4 sm:p-6">
                 <div className="attendance-tab">
                   {userRole === "admin" || userRole === "trainer" ? (
                     <div>
-                      <h2>Attendance Overview</h2>
-                      <p>Here you can manage attendance for all users.</p>
+                      <h2 className="text-base sm:text-lg font-semibold mb-2">Attendance Overview</h2>
+                      <p className="text-gray-500 text-sm sm:text-base mb-4">
+                        Manage attendance for all users.
+                      </p>
                       <button
                         onClick={() =>
                           handleDownloadAttendance(
-                            programDetails.selected_dates?.length > 0
-                              ? programDetails.selected_dates
-                              : dateRange,
+                            programDetails.selected_dates?.length > 0 ? programDetails.selected_dates : dateRange,
                             program
                           )
                         }
+                        className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm hover:bg-blue-700 transition mb-4"
                       >
                         Export to Excel
                       </button>
 
-                      <table className="attendance-table">
-                        <thead>
-                          <tr>
-                            <th>Full Name</th>
-                            {(programDetails.selected_dates?.length > 0
-                              ? programDetails.selected_dates
-                              : dateRange
-                            ).map((date) => {
-                              const formattedDate = new Date(
-                                date.seconds ? date.seconds * 1000 : date
-                              ).toLocaleDateString("en-CA"); // YYYY-MM-DD format
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full border-collapse text-xs sm:text-sm text-center">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="px-2 sm:px-4 py-2">Full Name</th>
+                              {(programDetails.selected_dates?.length > 0 ? programDetails.selected_dates : dateRange).map(
+                                (date) => {
+                                  const formattedDate = new Date(
+                                    date.seconds ? date.seconds * 1000 : date
+                                  ).toLocaleDateString("en-CA");
+                                  return (
+                                    <th key={formattedDate} className="px-2 sm:px-4 py-2">
+                                      {formattedDate}
+                                    </th>
+                                  );
+                                }
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {allUsersAttendance.map(({ user_id, attendance, full_name }) => (
+                              <tr key={user_id} className="border-b">
+                                <td className="px-2 sm:px-4 py-2">{full_name}</td>
+                                {(programDetails.selected_dates?.length > 0 ? programDetails.selected_dates : dateRange).map(
+                                  (date) => {
+                                    const formattedDate = new Date(
+                                      date.seconds ? date.seconds * 1000 : date
+                                    ).toLocaleDateString("en-CA");
 
-                              return (
-                                <th key={formattedDate}>{formattedDate}</th>
-                              );
-                            })}
+                                    let status = "No Data";
+                                    const today = new Date().toLocaleDateString("en-CA");
+                                    if (attendance) {
+                                      Object.values(attendance).forEach((record) => {
+                                        if (record.date === formattedDate) status = record.remark;
+                                      });
+                                    }
+                                    if (status === "No Data" && formattedDate < today) {
+                                      status = "absent";
+                                    }
+
+                                    return (
+                                      <td
+                                        key={`${user_id}_${formattedDate}`}
+                                        className={`px-2 sm:px-4 py-2 capitalize text-center ${status === "present"
+                                          ? "text-green-600"
+                                          : status === "absent"
+                                            ? "text-red-600"
+                                            : "text-gray-400"
+                                          }`}
+                                      >
+                                        {status}
+                                      </td>
+                                    );
+                                  }
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full border-collapse text-xs sm:text-sm text-center">
+                        <thead className="bg-gray-100">
+                          <tr>
+                            <th className="px-2 sm:px-4 py-2">Date</th>
+                            <th className="px-2 sm:px-4 py-2">Status</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {allUsersAttendance.map(
-                            ({ user_id, attendance, full_name }) => (
-                              <tr key={user_id}>
-                                <td>{full_name}</td>
-                                {(programDetails.selected_dates?.length > 0
-                                  ? programDetails.selected_dates
-                                  : dateRange
-                                ).map((date) => {
-                                  const formattedDate = new Date(
-                                    date.seconds ? date.seconds * 1000 : date
-                                  ).toLocaleDateString("en-CA"); // YYYY-MM-DD format
+                          {(programDetails.selected_dates?.length > 0 ? programDetails.selected_dates : dateRange).map(
+                            (date) => {
+                              const formattedDate = new Date(
+                                date.seconds ? date.seconds * 1000 : date
+                              ).toLocaleDateString("en-CA");
 
-                                  let status = "No Data";
-                                  const today = new Date().toLocaleDateString(
-                                    "en-CA"
-                                  );
+                              let status = "No Data";
+                              const today = new Date().toLocaleDateString("en-CA");
 
-                                  if (attendance) {
-                                    Object.values(attendance).forEach(
-                                      (record) => {
-                                        if (record.date === formattedDate) {
-                                          status = record.remark;
-                                        }
-                                      }
-                                    );
+                              if (attendanceData.length > 0) {
+                                attendanceData.forEach((applicant) => {
+                                  if (applicant.attendance && Array.isArray(applicant.attendance)) {
+                                    applicant.attendance.forEach((record) => {
+                                      if (record.date === formattedDate) status = record.remark;
+                                    });
                                   }
+                                });
+                              }
 
-                                  // Mark as "Absent" if past and no data
-                                  if (
-                                    status === "No Data" &&
-                                    formattedDate < today
-                                  ) {
-                                    status = "absent";
-                                  }
+                              if (status === "No Data" && formattedDate < today) {
+                                status = "absent";
+                              }
 
-                                  let cellClass =
-                                    status === "present"
-                                      ? "present"
+                              return (
+                                <tr key={formattedDate}>
+                                  <td className="px-2 sm:px-4 py-2">{formattedDate}</td>
+                                  <td
+                                    className={`px-2 sm:px-4 py-2 capitalize text-center ${status === "present"
+                                      ? "text-green-600"
                                       : status === "absent"
-                                      ? "absent"
-                                      : "no-data";
-
-                                  return (
-                                    <td
-                                      key={`${user_id}_${formattedDate}`}
-                                      className={cellClass}
-                                    >
-                                      {status === "present"
-                                        ? "Present"
-                                        : status === "absent"
-                                        ? "Absent"
-                                        : "No Data"}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            )
+                                        ? "text-red-600"
+                                        : "text-gray-400"
+                                      }`}
+                                  >
+                                    {status}
+                                  </td>
+                                </tr>
+                              );
+                            }
                           )}
                         </tbody>
                       </table>
                     </div>
-                  ) : (
-                    <table className="attendance-table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(programDetails.selected_dates?.length > 0
-                          ? programDetails.selected_dates
-                          : dateRange
-                        ).map((date) => {
-                          const formattedDate = new Date(
-                            date.seconds ? date.seconds * 1000 : date
-                          ).toLocaleDateString("en-CA"); // YYYY-MM-DD format
-
-                          let status = "No Data";
-                          const today = new Date().toLocaleDateString("en-CA");
-
-                          if (attendanceData.length > 0) {
-                            attendanceData.forEach((applicant) => {
-                              if (
-                                applicant.attendance &&
-                                Array.isArray(applicant.attendance)
-                              ) {
-                                applicant.attendance.forEach((record) => {
-                                  if (record.date === formattedDate) {
-                                    status = record.remark;
-                                  }
-                                });
-                              }
-                            });
-                          }
-
-                          // Mark as "Absent" if past and no data
-                          if (status === "No Data" && formattedDate < today) {
-                            status = "absent";
-                          }
-
-                          let cellClass =
-                            status === "present"
-                              ? "present"
-                              : status === "absent"
-                              ? "absent"
-                              : "no-data";
-
-                          return (
-                            <tr key={formattedDate}>
-                              <td>{formattedDate}</td>
-                              <td className={cellClass}>
-                                {status === "present"
-                                  ? "Present"
-                                  : status === "absent"
-                                  ? "Absent"
-                                  : "No Data"}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
                   )}
                 </div>
               </div>
             )}
+
           </div>
+
         </div>
 
         <div className="mt-6">
-          <h3 className="text-lg font-semibold mb-3">
+          <h3 className="text-lg font-semibold mb-3 text-gray-800 text-center sm:text-left">
             {programDetails.type} - Training Materials
           </h3>
 
@@ -1972,19 +2035,19 @@ const ProgramDetails = ({ userId }) => {
               {/* Scrollable Container */}
               <div
                 ref={scrollContainerRef}
-                className="flex overflow-x-auto space-x-4 snap-x scroll-smooth scrollbar-hide"
+                className="flex overflow-x-auto space-x-4 snap-x snap-mandatory scroll-smooth scrollbar-hide px-1"
                 style={{ scrollBehavior: "smooth" }}
               >
-                {/* Videos First */}
+                {/* Videos */}
                 {materials.videoUrls?.map((vidUrl, index) => (
                   <div
                     key={`video-${index}`}
-                    className="relative group snap-center flex-shrink-0"
+                    className="relative group snap-center flex-shrink-0 w-[85%] sm:w-[60%] md:w-[45%] lg:w-[40%] xl:w-[30%]"
                   >
-                    <div className="w-full h-80 sm:h-[80px] md:h-[80px] lg:h-[80px] xl:h-[315px]">
+                    <div className="w-full h-48 sm:h-56 md:h-64 lg:h-72 xl:h-[315px]">
                       <video
                         controls
-                        className="w-full h-full object-cover block rounded-md shadow"
+                        className="w-full h-full object-cover rounded-md shadow-md"
                       >
                         <source src={vidUrl} type="video/mp4" />
                       </video>
@@ -1992,40 +2055,40 @@ const ProgramDetails = ({ userId }) => {
                   </div>
                 ))}
 
-                {/* Images Next */}
+                {/* Images */}
                 {materials.imageUrls?.map((imgUrl, index) => (
                   <div
                     key={`image-${index}`}
-                    className="relative group snap-center flex-shrink-0 w-full sm:w-1/2"
+                    className="relative group snap-center flex-shrink-0 w-[85%] sm:w-[60%] md:w-[45%] lg:w-[40%] xl:w-[30%]"
                   >
                     <img
                       src={imgUrl}
                       alt="Training Material"
-                      className="w-full h-80 object-cover rounded-md shadow"
+                      className="w-full h-48 sm:h-56 md:h-64 lg:h-72 xl:h-[315px] object-cover rounded-md shadow-md"
                     />
                   </div>
                 ))}
               </div>
 
               {/* Pagination Dots */}
-              <div className="flex justify-center mt-3 space-x-1.5">
+              <div className="flex justify-center mt-4 space-x-2">
                 {allMaterials.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => scrollToIndex(index)}
-                    className={`h-1.5 w-1.5 rounded-full transition-all duration-300 focus:outline-none ${
-                      currentIndex === index
-                        ? "bg-blue-600 scale-125"
-                        : "bg-gray-400"
-                    }`}
+                    className={`h-2 w-2 rounded-full transition-all duration-300 focus:outline-none ${currentIndex === index ? "bg-blue-600 scale-125" : "bg-gray-400"
+                      }`}
                   ></button>
                 ))}
               </div>
             </>
           ) : (
-            <p className="text-gray-500">No training materials available.</p>
+            <p className="text-gray-500 text-center sm:text-left">
+              No training materials available.
+            </p>
           )}
         </div>
+
 
         {showQRCodeOptions && (
           <div className="overlay-qr-options">
@@ -2122,9 +2185,8 @@ const ProgramDetails = ({ userId }) => {
               <button
                 onClick={uploadDocumentsToFirebase}
                 disabled={requirements.length === 0}
-                className={`upload-button ${
-                  requirements.length === 0 ? "disabled" : ""
-                }`}
+                className={`upload-button ${requirements.length === 0 ? "disabled" : ""
+                  }`}
               >
                 Upload
               </button>

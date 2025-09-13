@@ -295,8 +295,8 @@ const App = () => {
                   <AdminPanel userId={userId} handleSignOut={handleSignOut} />
                 }
               >
-                <Route index element={<Dashboard />} />
-                <Route path="dashboard" element={<Dashboard />} />
+                <Route index element={<Dashboard userId={userId} />} />
+                <Route path="dashboard" element={<Dashboard userId={userId} />} />
                 <Route
                   path="training-programs"
                   element={<TrainingPrograms userId={userId} />}
