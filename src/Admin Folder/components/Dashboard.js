@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
 import { collection, getDocs, doc, getDoc, query, where } from "firebase/firestore";
+import { motion } from "framer-motion";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import TrainingProgramsPieChart from "./charts/TrainingProgramsPieChart";
@@ -623,7 +624,7 @@ const Dashboard = ({ userId }) => {
         body: JSON.stringify({
           fileName,
           title: fileName,
-          adminName: adminName, 
+          adminName: adminName,
           todayDate: new Date().toLocaleDateString(),
           participants: filteredParticipants,
         }),
@@ -1742,21 +1743,28 @@ const Dashboard = ({ userId }) => {
 
 const Card = ({ icon, title, count, color, children }) => {
   return (
-    <div
-      className={`p-6 ${color} text-white rounded-lg shadow-lg relative flex flex-col items-center justify-center`}
+    <motion.div
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.98 }}
+      className={`relative p-6 ${color} text-white rounded-2xl shadow-lg flex flex-col justify-between overflow-hidden`}
     >
-      {/* Icon on the upper left corner */}
-      <div className="absolute top-4 left-4 text-3xl">{icon}</div>
+      {/* Glow Background Effect */}
+      <div className="absolute inset-0 bg-white opacity-10 blur-2xl rounded-2xl"></div>
 
-      {/* Centered content */}
-      <div className="text-center">
-        <h2 className="text-2xl font-bold">{count}</h2>
-        <p className="text-md font-medium">{title}</p>
+      {/* Icon in top-left */}
+      <div className="absolute top-4 left-4 text-3xl drop-shadow-lg">{icon}</div>
+
+      {/* Main Content */}
+      <div className="flex flex-col items-center justify-center text-center mt-6">
+        <h2 className="text-4xl font-extrabold drop-shadow-sm">{count}</h2>
+        <p className="mt-1 text-md font-medium opacity-90">{title}</p>
       </div>
 
-      {/* Additional content (e.g., buttons) */}
-      <div className="mt-4">{children}</div>
-    </div>
+      {/* Footer / Extra Content */}
+      {children && (
+        <div className="mt-6 w-full flex justify-center">{children}</div>
+      )}
+    </motion.div>
   );
 };
 
@@ -1863,50 +1871,77 @@ const QuotaCard = ({
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-lg font-semibold mb-2">{title}</h2>
-      <p className="text-sm text-gray-600">{selectedDate}</p>
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="p-6 bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-lg border border-gray-200 relative overflow-hidden"
+    >
+      {/* Header */}
+      <div className="flex justify-between items-center mb-3">
+        <h2 className="text-xl font-bold text-gray-800">{title}</h2>
+        <span className="text-sm text-gray-500">{selectedDate}</span>
+      </div>
 
-      {/* Progress Bar */}
-      <div className="w-full bg-gray-300 rounded-full h-4 mt-2">
-        <div
-          className={`h-4 rounded-full ${isFutureDate ? "bg-gray-400" : "bg-blue-600"
-            }`}
-          style={{ width: `${percentage}%` }}
-        ></div>
+      {/* Animated Progress Bar */}
+      <div className="w-full bg-gray-200 rounded-full h-4 mt-2 overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${percentage}%` }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          className={`h-4 rounded-full ${isFutureDate ? "bg-gray-400" : "bg-gradient-to-r from-blue-500 to-green-400"}`}
+        ></motion.div>
       </div>
 
       {/* Quota Info */}
-      <p className="text-sm text-gray-600 mt-2">
-        {current}/{total} trainings completed
-      </p>
-      <p className="text-sm text-gray-600">{quotaMessage}</p>
+      <div className="mt-3">
+        <p className="text-sm text-gray-700 font-medium">
+          <span className="font-bold">{current}</span> / {total} trainings completed
+        </p>
+        <motion.p
+          key={quotaMessage}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="text-sm text-gray-600 mt-1"
+        >
+          {quotaMessage}
+        </motion.p>
+      </div>
 
       {/* Export Button */}
-      <button
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        whileHover={{ scale: isFutureDate ? 1 : 1.03 }}
         onClick={handleExport}
         disabled={isFutureDate}
-        className={`mt-3 px-4 py-2 rounded-md ${isFutureDate
+        className={`mt-5 w-full flex items-center justify-center px-4 py-2 rounded-lg shadow-md transition-all text-white font-semibold ${isFutureDate
           ? "bg-gray-400 cursor-not-allowed"
           : "bg-blue-600 hover:bg-blue-700"
-          } text-white`}
+          }`}
       >
         <FaDownload className="inline-block mr-2" /> Generate Quota Report
-      </button>
+      </motion.button>
 
       {/* Loading Overlay */}
       {isLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        >
+          <motion.div
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center"
+          >
             <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
-            <h2 className="text-xl font-semibold mb-2">Exporting...</h2>
-            <p className="text-gray-600">
-              This could take a while, sip a coffee first ☕
-            </p>
-          </div>
-        </div>
+            <h2 className="text-xl font-semibold mb-2 text-gray-800">Exporting...</h2>
+            <p className="text-gray-600">This could take a while, sip a coffee first ☕</p>
+          </motion.div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 };
 

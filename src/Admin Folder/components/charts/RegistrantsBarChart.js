@@ -15,6 +15,7 @@ import { format, subDays } from "date-fns";
 import loader from "./blue-loader.svg";
 import SubLoading from "./../../../lottie-files-anim/sub-loading.json";
 import Lottie from "lottie-react";
+import { motion } from "framer-motion";
 
 ChartJS.register(
   CategoryScale,
@@ -35,25 +36,22 @@ const RegistrantsBarChart = () => {
         const registrantsCollection = collection(db, "Registrants");
         const snapshot = await getDocs(registrantsCollection);
 
-        // get today's date
         const today = new Date();
-
-        // array to hold all 7 days
         const registrantsCount = Array(7).fill(0);
         const labels = [];
 
-        // populate label for all 7 days with appropriate format
+        // ✅ Use readable format (Sep. 13, 2025)
         for (let i = 0; i < 7; i++) {
           const date = subDays(today, i);
-          labels.push(format(date, "yyyy-MM-dd"));
+          labels.push(format(date, "MMM. dd, yyyy"));
         }
 
-        // count registrants for each day
         snapshot.docs.forEach((doc) => {
           const data = doc.data();
           if (data.submittedAt && data.submittedAt.toDate) {
             const regDate = data.submittedAt.toDate();
-            const regDateString = format(regDate, "yyyy-MM-dd");
+            // ✅ Match format with labels
+            const regDateString = format(regDate, "MMM. dd, yyyy");
             const dayIndex = labels.indexOf(regDateString);
 
             if (dayIndex !== -1) {
@@ -62,35 +60,19 @@ const RegistrantsBarChart = () => {
           }
         });
 
-        // check if there is a registrant per day and if not, put 0
         const totalRegistrants = registrantsCount.reduce((a, b) => a + b, 0);
-        if (totalRegistrants === 0) {
-          setChartData({
-            labels: labels.reverse(),
-            datasets: [
-              {
-                label: "Number of Registrants",
-                data: Array(7).fill(0),
-                backgroundColor: "rgba(75, 192, 192, 0.6)",
-                borderColor: "rgba(75, 192, 192, 1)",
-                borderWidth: 1,
-              },
-            ],
-          });
-        } else {
-          setChartData({
-            labels: labels.reverse(),
-            datasets: [
-              {
-                label: "Number of Registrants",
-                data: registrantsCount.reverse(),
-                backgroundColor: "rgba(75, 192, 192, 0.6)",
-                borderColor: "rgba(75, 192, 192, 1)",
-                borderWidth: 1,
-              },
-            ],
-          });
-        }
+        setChartData({
+          labels: labels.reverse(),
+          datasets: [
+            {
+              label: "Number of Registrants",
+              data: totalRegistrants === 0 ? Array(7).fill(0) : registrantsCount.reverse(),
+              backgroundColor: "rgba(75, 192, 192, 0.6)",
+              borderColor: "rgba(75, 192, 192, 1)",
+              borderWidth: 1,
+            },
+          ],
+        });
       } catch (error) {
         console.error("Error fetching registrant data:", error);
       }
@@ -98,6 +80,7 @@ const RegistrantsBarChart = () => {
 
     fetchRegistrantData();
   }, []);
+
 
   // put a loading screen when the chart is not yet ready
   if (!chartData) {
@@ -113,30 +96,44 @@ const RegistrantsBarChart = () => {
   }
 
   return (
-    <div style={{ overflowX: "auto" }}>
-      <h3>Volume of Registrants Over the Last 7 Days</h3>
-      <Bar
-        data={chartData}
-        options={{
-          responsive: true,
-          scales: {
-            x: {
-              title: {
-                display: true,
-                text: "Date",
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="bg-white p-6 rounded-2xl shadow-lg w-full"
+    >
+      <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">
+        📊 Volume of Registrants (Last 7 Days)
+      </h3>
+
+      <div className="overflow-x-auto">
+        <Bar
+          data={chartData}
+          options={{
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: "#1E3A8A",
+                titleColor: "#fff",
+                bodyColor: "#f0f0f0",
               },
             },
-            y: {
-              title: {
-                display: true,
-                text: "Number of Registrants",
+            scales: {
+              x: {
+                title: { display: true, text: "Date" },
+                ticks: { color: "#374151" },
               },
-              beginAtZero: true,
+              y: {
+                title: { display: true, text: "Number of Registrants" },
+                beginAtZero: true,
+                ticks: { stepSize: 1, color: "#374151" },
+              },
             },
-          },
-        }}
-      />
-    </div>
+          }}
+        />
+      </div>
+    </motion.div>
   );
 };
 

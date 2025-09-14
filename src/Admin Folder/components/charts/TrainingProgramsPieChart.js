@@ -4,8 +4,8 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import { db } from "./firebase";
 import { collection, getDocs } from "firebase/firestore";
+import { format } from "date-fns"; // ✅ for formatting if types have dates
 import "./pie_chart.css";
-import loader from "./blue-loader.svg";
 import SubLoading from "./../../../lottie-files-anim/sub-loading.json";
 import Lottie from "lottie-react";
 
@@ -23,9 +23,14 @@ const TrainingProgramsPieChart = () => {
 
         const programTypesCount = {};
 
-        // count the number of type
         programs.forEach((program) => {
-          const type = program.type || "Unknown";
+          let type = program.type || "Unknown";
+
+          // ✅ If type looks like a date, format it nicely
+          if (!isNaN(Date.parse(type))) {
+            type = format(new Date(type), "MMM. dd, yyyy");
+          }
+
           if (!programTypesCount[type]) {
             programTypesCount[type] = 0;
           }
@@ -42,13 +47,15 @@ const TrainingProgramsPieChart = () => {
               label: "Training Programs by Type",
               data: counts,
               backgroundColor: [
-                "#FF6384",
-                "#36A2EB",
-                "#FFCE56",
-                "#4BC0C0",
-                "#9966FF",
-                "#FF9F40",
+                "#3B82F6", // Tailwind blue
+                "#10B981", // Tailwind green
+                "#F59E0B", // Tailwind amber
+                "#EF4444", // Tailwind red
+                "#8B5CF6", // Tailwind violet
+                "#14B8A6", // Tailwind teal
               ],
+              borderWidth: 2,
+              hoverOffset: 12, // ✅ add hover animation
             },
           ],
         });
@@ -91,7 +98,7 @@ const TrainingProgramsPieChart = () => {
         callbacks: {
           label: (tooltipItem) => {
             const { label, raw } = tooltipItem;
-            return `${label}: ${raw}`;
+            return `${label}: ${raw} programs`;
           },
         },
       },
@@ -99,19 +106,26 @@ const TrainingProgramsPieChart = () => {
         anchor: "center",
         align: "center",
         color: "#fff",
+        font: { weight: "bold" },
         formatter: (value, context) => {
           const dataset = context.chart.data.datasets[context.datasetIndex];
           const total = dataset.data.reduce((sum, current) => sum + current, 0);
-          const percentage = ((value / total) * 100).toFixed(2) + "%";
+          const percentage = ((value / total) * 100).toFixed(1) + "%";
           return percentage;
         },
       },
+    },
+    animation: {
+      animateScale: true,
+      animateRotate: true,
     },
   };
 
   return (
     <div className="pie-chart-container">
-      <h3>Training Programs by Type</h3>
+      <h3 className="text-lg font-semibold mb-4 text-gray-700">
+        Training Programs by Type
+      </h3>
       <div className="chart-legend-wrapper">
         <div className="chart-wrapper">
           <Pie data={chartData} options={options} />

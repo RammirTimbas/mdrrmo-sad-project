@@ -38,6 +38,8 @@ const Settings = ({ userId }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isProcessing2, setIsProcessing2] = useState(false);
 
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const [newAdmin, setNewAdmin] = useState({
     name: "",
     email: "",
@@ -69,6 +71,86 @@ const Settings = ({ userId }) => {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  const [filterName, setFilterName] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [filterAction, setFilterAction] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+
+  const [adminName, setAdminName] = useState("Admin User");
+
+  useEffect(() => {
+    const fetchAdminName = async () => {
+      try {
+        const adminDoc = await getDoc(doc(db, "Users", userId));
+        if (adminDoc.exists()) {
+          setAdminName(adminDoc.data().name || "Admin");
+        }
+      } catch (error) {
+        console.error("Error fetching admin name:", error);
+      }
+    };
+    fetchAdminName();
+  }, [userId]);
+
+
+  // --- generate option lists (compute after logs state is filled) ---
+  const adminNames = Array.from(
+    new Set(logs.map((l) => l.name).filter(Boolean))
+  ).sort();
+
+  const typesOpt = Array.from(
+    new Set(logs.map((l) => l.type).filter(Boolean))
+  ).sort();
+
+  const actionsOpt = Array.from(
+    new Set(logs.map((l) => l.action).filter(Boolean))
+  ).sort();
+
+  // dates in yyyy-mm-dd for date input options (unique)
+  const datesOpt = Array.from(
+    new Set(
+      logs
+        .map((l) => {
+          try {
+            return new Date(l.date).toISOString().slice(0, 10);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean)
+    )
+  ).sort().reverse();
+
+
+  // --- filteredLogs using individual filters (replaces previous filter logic) ---
+  const filteredLogs = logs
+    .filter((log) => {
+      // Admin name filter (exact match)
+      if (filterName && log.name !== filterName) return false;
+
+      // Type filter (exact match)
+      if (filterType && log.type !== filterType) return false;
+
+      // Action filter (exact match)
+      if (filterAction && log.action !== filterAction) return false;
+
+      // Date filter (compare yyyy-mm-dd safely)
+      if (filterDate) {
+        try {
+          const logDate = new Date(log.date);
+          if (isNaN(logDate)) return false; // skip invalid
+          const logDateYMD = logDate.toISOString().slice(0, 10);
+          if (logDateYMD !== filterDate) return false;
+        } catch {
+          return false;
+        }
+      }
+
+
+      return true;
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const handleAnnouncementSubmit = async (e) => {
     e.preventDefault();
@@ -123,6 +205,115 @@ const Settings = ({ userId }) => {
     );
     Swal.fire("Success", "Annual Quota Updated!", "success");
   };
+
+  const handleExportLogs = async () => {
+    const now = new Date();
+    const month = now.toLocaleString("en-US", { month: "short" }); // e.g. "Sep"
+    const year = now.getFullYear();
+    const defaultFileName = `Logs_Report_${month}_${year}`;
+
+    const { value: formValues } = await Swal.fire({
+      title: "Export Logs",
+      html: `
+      <div style="display: flex; flex-direction: column; gap: 1rem; text-align: left; width: 100%; max-width: 400px; margin: auto;">
+        
+        <div style="width: 100%;">
+          <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem;">File Name</label>
+          <input id="swal-filename" 
+            type="text"
+            value="${defaultFileName}"
+            placeholder="Enter file name"
+            style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 0.875rem; outline: none; box-sizing: border-box;" />
+        </div>
+
+        <div style="width: 100%;">
+          <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem;">Remarks</label>
+          <textarea id="swal-remarks" 
+            placeholder="Enter remarks for all logs"
+            style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 0.875rem; resize: none; outline: none; box-sizing: border-box;"></textarea>
+        </div>
+
+        <div style="width: 100%;">
+          <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem;">Format</label>
+          <select id="swal-format"
+            style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 0.875rem; outline: none; box-sizing: border-box;">
+            <option value="docx">DOCX</option>
+          </select>
+        </div>
+      </div>
+    `,
+      focusConfirm: false,
+      confirmButtonText: "Generate",
+      showCancelButton: true,
+      customClass: {
+        popup: "no-scroll-popup",
+      },
+      preConfirm: () => {
+        const fileName = (document.getElementById("swal-filename").value || "Logs_Report").trim();
+        const remarks = (document.getElementById("swal-remarks").value || "").trim();
+        const format = document.getElementById("swal-format").value;
+        return { fileName, remarks, format };
+      },
+    });
+
+    if (!formValues) return;
+
+    const { fileName, remarks, format } = formValues;
+    const dataToExport = filteredLogs.length > 0 ? filteredLogs : logs;
+
+    if (!Array.isArray(dataToExport) || dataToExport.length === 0) {
+      Swal.fire("Notice", "No logs to export.", "info");
+      return;
+    }
+
+    try {
+      Swal.fire({
+        title: "Generating...",
+        text: "Please wait",
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      const response = await fetch(`${API_BASE_URL}/export-logs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName,
+          format,
+          title: fileName,
+          adminName,
+          todayDate: new Date().toLocaleDateString(),
+          logs: dataToExport,
+          remarks,
+        }),
+      });
+
+      if (!response.ok) {
+        const txt = await response.text().catch(() => null);
+        throw new Error(txt || "Export failed");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${fileName}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      Swal.fire("Success", "Export ready — download started.", "success");
+    } catch (err) {
+      console.error("Export error:", err);
+      Swal.fire("Error", "Failed to export logs. Check console.", "error");
+    }
+  };
+
+
+
+
+
 
   const handleFileUpload = async (e, type, fileType) => {
     const file = e.target.files[0];
@@ -286,18 +477,6 @@ const Settings = ({ userId }) => {
     fetchCarouselImages();
   }, []);
 
-  const filteredLogs = logs
-    .filter((log) => {
-      if (log.name && log.type && log.action) {
-        return (
-          log.name.toLowerCase().includes(filter.toLowerCase()) ||
-          log.type.toLowerCase().includes(filter.toLowerCase()) ||
-          log.action.toLowerCase().includes(filter.toLowerCase())
-        );
-      }
-    })
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-
   const [currentPage, setCurrentPage] = useState(1);
   const logsPerPage = 10;
 
@@ -444,6 +623,9 @@ const Settings = ({ userId }) => {
       fileInputRef.current.click();
     }
   };
+
+
+
 
   return (
     <div className="settings-container">
@@ -609,23 +791,180 @@ const Settings = ({ userId }) => {
       {activeTab === "viewLogs" && (
         <div className="view-logs mt-4">
 
-          {/* Filter/Search */}
-          <div className="mb-4">
-            <label
-              htmlFor="logFilter"
-              className="block text-sm font-medium text-gray-700 mb-1"
+          {/* Filters Section */}
+          <div className="mb-6 bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
+            {/* Header (clickable for collapse) */}
+            <button
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 hover:bg-gray-100 transition"
             >
-              Filter Logs:
-            </label>
-            <input
-              type="text"
-              id="logFilter"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Search by admin name, type, or action"
-              className="w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-5 h-5 text-blue-600"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Filter Logs
+              </h3>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500">{filteredLogs.length} results</span>
+                {filtersOpen ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="w-5 h-5 text-gray-500"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                  </svg>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="w-5 h-5 text-gray-500"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                )}
+              </div>
+            </button>
+
+            {/* Filters Content (collapsible) */}
+            {filtersOpen && (
+              <div className="p-5 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Admin Name */}
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium text-gray-600 mb-1">Admin Name</label>
+                    <select
+                      value={filterName}
+                      onChange={(e) => {
+                        setFilterName(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${filterName ? "border-blue-500 ring-blue-200" : "border-gray-300 focus:ring-blue-500"
+                        }`}
+                    >
+                      <option value="">All Admins</option>
+                      {adminNames.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Type */}
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium text-gray-600 mb-1">Type</label>
+                    <select
+                      value={filterType}
+                      onChange={(e) => {
+                        setFilterType(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${filterType ? "border-blue-500 ring-blue-200" : "border-gray-300 focus:ring-blue-500"
+                        }`}
+                    >
+                      <option value="">All Types</option>
+                      {typesOpt.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium text-gray-600 mb-1">Date</label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={filterDate}
+                        onChange={(e) => {
+                          setFilterDate(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className={`w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${filterDate ? "border-blue-500 ring-blue-200" : "border-gray-300 focus:ring-blue-500"
+                          }`}
+                        style={{
+                          WebkitAppearance: "none",
+                          MozAppearance: "none",
+                          appearance: "none",
+                          paddingRight: "2.5rem", // leave space for calendar icon
+                          lineHeight: "1.5rem",   // match selects
+                          height: "2.5rem"        // force same height as selects
+                        }}
+                      />
+                    </div>
+                  </div>
+
+
+
+                </div>
+
+                {/* Controls */}
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => {
+                      setFilterName("");
+                      setFilterType("");
+                      setFilterDate("");
+                      setCurrentPage(1);
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-2"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="w-4 h-4"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear Filters
+                  </button>
+
+                  <button
+                    onClick={handleExportLogs}
+                    className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg shadow hover:from-blue-700 hover:to-indigo-700 transition flex items-center gap-2"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                      />
+                    </svg>
+                    Export Logs
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+
+
+
+
 
           {/* Logs Table */}
           <div className="overflow-x-auto">
@@ -661,8 +1000,11 @@ const Settings = ({ userId }) => {
                         {log.action}
                       </td>
                       <td className="px-4 py-2 border-b text-sm">
-                        {new Date(log.date).toLocaleString()}
+                        {log.date && !isNaN(new Date(log.date))
+                          ? new Date(log.date).toLocaleString()
+                          : "-"}
                       </td>
+
                     </tr>
                   ))
                 )}
@@ -676,11 +1018,10 @@ const Settings = ({ userId }) => {
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className={`px-3 py-1 rounded ${
-                  currentPage === 1
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
-                }`}
+                className={`px-3 py-1 rounded ${currentPage === 1
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
               >
                 Prev
               </button>
@@ -689,11 +1030,10 @@ const Settings = ({ userId }) => {
                 <button
                   key={i}
                   onClick={() => setCurrentPage(i + 1)}
-                  className={`px-3 py-1 rounded ${
-                    currentPage === i + 1
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
+                  className={`px-3 py-1 rounded ${currentPage === i + 1
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
                 >
                   {i + 1}
                 </button>
@@ -704,11 +1044,10 @@ const Settings = ({ userId }) => {
                   setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                 }
                 disabled={currentPage === totalPages}
-                className={`px-3 py-1 rounded ${
-                  currentPage === totalPages
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
-                }`}
+                className={`px-3 py-1 rounded ${currentPage === totalPages
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
               >
                 Next
               </button>
@@ -923,11 +1262,10 @@ const Settings = ({ userId }) => {
             <div className="flex justify-end">
               <button
                 type="submit"
-                className={`px-6 py-2 font-semibold text-white rounded-md transition ${
-                  loading
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700"
-                }`}
+                className={`px-6 py-2 font-semibold text-white rounded-md transition ${loading
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+                  }`}
                 disabled={loading}
               >
                 {loading ? "Sending..." : "Send Announcement"}
