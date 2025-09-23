@@ -759,10 +759,18 @@ const ProgramDetails = ({ userId }) => {
   const normalizeDates = (program) => {
     if (program.dateMode === "range") {
       if (program.start_date && program.end_date) {
-        return [
-          new Date(program.start_date * 1000),
-          new Date(program.end_date * 1000),
-        ];
+        // Generate all dates between start and end (inclusive)
+        const start = new Date(program.start_date * 1000);
+        const end = new Date(program.end_date * 1000);
+        const dates = [];
+        let current = new Date(start);
+        current.setHours(0, 0, 0, 0);
+        end.setHours(0, 0, 0, 0);
+        while (current <= end) {
+          dates.push(new Date(current));
+          current.setDate(current.getDate() + 1);
+        }
+        return dates;
       }
     } else if (
       program.dateMode === "specific" &&

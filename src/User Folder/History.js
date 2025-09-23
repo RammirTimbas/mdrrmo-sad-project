@@ -83,7 +83,7 @@ const History = ({ userId }) => {
     fetchUserEmail();
   }, [effectiveUserId]);
 
-  //fetch applied programs on User History collection
+  // fetch applied programs on User History collection
   useEffect(() => {
     if (!effectiveUserId) {
       console.error("No user ID or view ID provided.");
@@ -121,20 +121,21 @@ const History = ({ userId }) => {
             })
           );
 
-          const currentDate = new Date();
-          const nowTimestamp = Math.floor(currentDate.getTime() / 1000);
+          const now = new Date();
+          const nowTimestamp = Math.floor(now.getTime() / 1000);
 
           const applied = [];
           const completed = [];
 
           programsData.forEach((program) => {
             console.log(`\n🔍 Processing Program: ${program.program_title}`);
+
             const selectedDates = program.selected_dates || [];
             const hasCustomDates = selectedDates.length > 0;
             let isCompleted = false;
 
-            let startTimestamp = program.start_date;
-            let endTimestamp = program.end_date;
+            const startTimestamp = program.start_date;
+            const endTimestamp = program.end_date;
 
             console.log(`  - selected_dates: ${JSON.stringify(selectedDates)}`);
             console.log(
@@ -149,26 +150,26 @@ const History = ({ userId }) => {
             );
 
             if (hasCustomDates) {
+              // completed if all custom dates are in the past (strictly before today)
               const hasFutureDates = selectedDates.some(
-                (date) => date.seconds > nowTimestamp
+                (date) => date.seconds * 1000 >= now.setHours(0, 0, 0, 0)
               );
               isCompleted = !hasFutureDates;
-            } else {
-              isCompleted = endTimestamp < nowTimestamp;
+            } else if (endTimestamp) {
+              // adjust so completion is only the next day after end_date
+              const endDate = new Date(endTimestamp * 1000);
+              endDate.setHours(23, 59, 59, 999);
 
-              if (startTimestamp === endTimestamp) {
-                const nextDayMidnight = new Date(endTimestamp * 1000);
-                nextDayMidnight.setHours(23, 59, 59, 999);
-                const completionTime = Math.floor(
-                  nextDayMidnight.getTime() / 1000
-                );
+              const nextDay = new Date(endDate);
+              nextDay.setDate(nextDay.getDate() + 1);
+              nextDay.setHours(0, 0, 0, 0);
 
-                isCompleted = nowTimestamp >= completionTime;
+              const completionTime = Math.floor(nextDay.getTime() / 1000);
+              isCompleted = nowTimestamp >= completionTime;
 
-                console.log(
-                  `  - One-Day Program Completion Check: now(${nowTimestamp}) >= nextDayMidnight(${completionTime}) -> ${isCompleted}`
-                );
-              }
+              console.log(
+                `  - Completion Check: now(${nowTimestamp}) >= nextDay(${completionTime}) -> ${isCompleted}`
+              );
             }
 
             if (isCompleted) {
@@ -182,6 +183,7 @@ const History = ({ userId }) => {
 
           setAppliedPrograms(applied);
 
+          // fetch certificate status for completed programs
           const completedWithCerts = await Promise.all(
             completed.map(async (program) => {
               const cert = await getCertificateStatus(
@@ -198,6 +200,7 @@ const History = ({ userId }) => {
 
           setCompletedPrograms(completedWithCerts);
 
+          // managed programs
           const trainingProgramsQuery = query(
             collection(db, "Training Programs"),
             where("requestor_id", "==", effectiveUserId)
@@ -232,6 +235,7 @@ const History = ({ userId }) => {
     // Cleanup on unmount
     return () => unsubscribe();
   }, [effectiveUserId]);
+
 
   const handleCardClick = (program) => {
     if (role !== "admin") {
@@ -457,6 +461,49 @@ const History = ({ userId }) => {
     const authResponse = await authCheck.json();
     console.log("Auth Check Response:", authResponse);
 
+    // --- Refined logic for future programs ---
+    // Gather all applied and completed programs, filter for future sessions
+    const now = new Date();
+    const futurePrograms = [];
+
+    // Helper to check if any selected_dates are in the future
+    function hasFutureSelectedDate(program) {
+      if (!program.selected_dates || program.selected_dates.length === 0) return false;
+      return program.selected_dates.some(dateObj => {
+        const date = new Date(dateObj.seconds * 1000);
+        return date > now;
+      });
+    }
+
+    // Helper to check if ranged program is in the future
+    function isFutureRangedProgram(program) {
+      if (program.start_date && program.end_date) {
+        const endDate = new Date(program.end_date * 1000);
+        return endDate > now;
+      }
+      return false;
+    }
+
+    // Combine all programs
+    const allPrograms = [...appliedPrograms, ...completedPrograms];
+    allPrograms.forEach(program => {
+      if (hasFutureSelectedDate(program) || isFutureRangedProgram(program)) {
+        futurePrograms.push(program);
+      }
+    });
+
+    // If no future programs, show info and return
+    if (futurePrograms.length === 0) {
+      Swal.fire({
+        title: "No Upcoming Programs",
+        text: "🎉 All your training programs are already finished!",
+        icon: "info",
+      });
+      return;
+    }
+
+    // --- End refined logic ---
+
     if (!authResponse.authenticated) {
       console.log("🔄 Opening Google Authentication in a new tab...");
 
@@ -477,52 +524,53 @@ const History = ({ userId }) => {
         if (authStatus.authenticated) {
           clearInterval(checkAuthInterval);
           authWindow.close();
-          await syncEventsToGoogleCalendar();
+          await syncEventsToGoogleCalendar(futurePrograms);
         }
       }, 2000);
 
       return;
     }
 
-    await syncEventsToGoogleCalendar();
+    await syncEventsToGoogleCalendar(futurePrograms);
   };
 
   // 🔄 Function to sync events after authentication
-  const syncEventsToGoogleCalendar = async () => {
-    const now = new Date();
-
-    // Combine and filter out programs that are already finished
-    const upcomingOrOngoingPrograms = [
-      ...appliedPrograms,
-      ...completedPrograms,
-    ].filter((program) => {
-      const endTime = program.end_date
-        ? new Date(program.end_date * 1000)
-        : new Date(
-            program.selected_dates[0].seconds * 1000 + 3 * 60 * 60 * 1000
-          );
-      return endTime > now;
-    });
-
-    const events = upcomingOrOngoingPrograms.map((program) => {
-      const startTime = program.start_date
-        ? new Date(program.start_date * 1000).toISOString()
-        : new Date(program.selected_dates[0].seconds * 1000).toISOString();
-
-      const endTime = program.end_date
-        ? new Date(program.end_date * 1000).toISOString()
-        : new Date(
-            program.selected_dates[0].seconds * 1000 + 3 * 60 * 60 * 1000
-          ).toISOString();
-
-      return {
-        title: program.program_title,
-        location: program.program_venue || "N/A",
-        description: `Training Program: ${program.program_title}`,
-        startTime,
-        endTime,
-      };
-    });
+  const syncEventsToGoogleCalendar = async (futurePrograms) => {
+    // Accepts futurePrograms array
+    const events = futurePrograms.map((program) => {
+      // For selected_dates, create an event for each future date
+      if (program.selected_dates && program.selected_dates.length > 0) {
+        return program.selected_dates
+          .filter((dateObj) => {
+            const date = new Date(dateObj.seconds * 1000);
+            return date > new Date();
+          })
+          .map((dateObj) => {
+            const startTime = new Date(dateObj.seconds * 1000).toISOString();
+            // Default to 3 hours duration
+            const endTime = new Date(dateObj.seconds * 1000 + 3 * 60 * 60 * 1000).toISOString();
+            return {
+              title: program.program_title,
+              location: program.program_venue || "N/A",
+              description: `Training Program: ${program.program_title}`,
+              startTime,
+              endTime,
+            };
+          });
+      } else if (program.start_date && program.end_date) {
+        // Ranged program: create a single event for the range if end_date is in the future
+        const startTime = new Date(program.start_date * 1000).toISOString();
+        const endTime = new Date(program.end_date * 1000).toISOString();
+        return [{
+          title: program.program_title,
+          location: program.program_venue || "N/A",
+          description: `Training Program: ${program.program_title}`,
+          startTime,
+          endTime,
+        }];
+      }
+      return [];
+    }).flat();
 
     if (events.length === 0) {
       return Swal.fire({
@@ -662,11 +710,10 @@ const History = ({ userId }) => {
                               <div
                                 data-tooltip-id={tooltipId}
                                 data-tooltip-content={program.program_title}
-                                className={`text-[9px] font-medium truncate w-full px-1 py-[2px] rounded cursor-pointer ${
-                                  isCompleted
+                                className={`text-[9px] font-medium truncate w-full px-1 py-[2px] rounded cursor-pointer ${isCompleted
                                     ? "bg-green-100 text-gray-800"
                                     : "bg-yellow-100 text-gray-800"
-                                }`}
+                                  }`}
                               >
                                 {program.program_title}
                               </div>
@@ -930,15 +977,15 @@ const History = ({ userId }) => {
                           <b>Start:</b>{" "}
                           {program.start_date
                             ? new Date(
-                                program.start_date * 1000
-                              ).toLocaleDateString()
+                              program.start_date * 1000
+                            ).toLocaleDateString()
                             : "N/A"}{" "}
                           <br />
                           <b>End:</b>{" "}
                           {program.end_date
                             ? new Date(
-                                program.end_date * 1000
-                              ).toLocaleDateString()
+                              program.end_date * 1000
+                            ).toLocaleDateString()
                             : "N/A"}
                         </>
                       )}

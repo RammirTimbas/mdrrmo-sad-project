@@ -25,6 +25,8 @@ const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
 const RegistrationForm = ({ onClose }) => {
   const [step, setStep] = useState(1);
+  const noticeText = "Your personal information collected during registration in the MDRRMO Training Program Application and Management System is used solely for processing your training applications, managing participant records, and communicating official updates. We strictly protect your data through secure storage and access controls, and it will never be shared with unauthorized parties.";
+  const [showFullNotice, setShowFullNotice] = useState(false);
   const [isCertified, setIsCertified] = useState(false); //state for checkbox
   const [formSubmitted, setFormSubmitted] = useState(false); // state for form submission
   const [profilePicture, setProfilePicture] = useState(null); // state for profile picture
@@ -637,8 +639,43 @@ const RegistrationForm = ({ onClose }) => {
             <h2>Capability Registration Form</h2>
 
             <div className="notice">
-              Before filling up this registration form, please ensure that you
-              have an Intent Letter signed by the Municipal Mayor.
+              {/* See more/See less toggle for notice */}
+              {(() => {
+                return (
+                  <p>
+                    {showFullNotice ? noticeText : noticeText.slice(0, 120) + (noticeText.length > 120 ? "..." : "")}
+                    {noticeText.length > 120 && (
+                      <button
+                        type="button"
+                         style={{
+                           background: '#e3f0ff',
+                           color: '#2563eb',
+                           border: 'none',
+                           borderRadius: '0.5rem',
+                           padding: '0.2rem 0.7rem',
+                           marginLeft: '0.5rem',
+                           fontWeight: '500',
+                           fontSize: '0.95rem',
+                           cursor: 'pointer',
+                           boxShadow: '0 1px 4px rgba(37,99,235,0.08)',
+                           transition: 'background 0.2s, color 0.2s'
+                         }}
+                         onMouseOver={e => {
+                           e.target.style.background = '#2563eb';
+                           e.target.style.color = '#fff';
+                         }}
+                         onMouseOut={e => {
+                           e.target.style.background = '#e3f0ff';
+                           e.target.style.color = '#2563eb';
+                         }}
+                         onClick={() => setShowFullNotice((prev) => !prev)}
+                       >
+                         {showFullNotice ? "See less" : "See more"}
+                      </button>
+                    )}
+                  </p>
+                );
+              })()}
             </div>
 
             <form onSubmit={handleSubmit}>

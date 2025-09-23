@@ -130,7 +130,7 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
         if (!programSnap.exists()) {
           console.error("❌ Program data not found");
           setHasFullAttendance(false);
-          setAttendanceSummary("0/0");
+          setAttendanceSummary("0/1");
           return;
         }
 
@@ -151,13 +151,6 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
 
         console.log(`🔍 Checking Attendance for: ${userId}`);
         console.log("📌 User Attendance Data:", userAttendance);
-
-        if (!userAttendance || userAttendance.length === 0) {
-          console.warn("⚠ No attendance records found for user.");
-          setHasFullAttendance(false);
-          setAttendanceSummary("0/0");
-          return;
-        }
 
         // 🔹 Determine Total Training Sessions
         if (
@@ -183,8 +176,16 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
 
         // 🔹 Count the Attended Sessions
         attendedSessions = userAttendance.filter(
-          (entry) => entry.remark.toLowerCase() === "present"
+          (entry) => entry.remark && entry.remark.toLowerCase() === "present"
         ).length;
+
+        // If no attendance records, show 0/totalSessions (not 0/0)
+        if (!userAttendance || userAttendance.length === 0) {
+          console.warn("⚠ No attendance records found for user.");
+          setHasFullAttendance(false);
+          setAttendanceSummary(`0/${totalSessions}`);
+          return;
+        }
 
         console.log(
           `✅ Attended Sessions: ${attendedSessions}/${totalSessions}`
@@ -204,6 +205,16 @@ const RatingForm = ({ programId, userId, onClose, onSubmit }) => {
 
   const requestCertificate = async () => {
     try {
+      // Check attendance before proceeding
+      if (!hasFullAttendance) {
+        Swal.fire(
+          "Attendance Required",
+          `You must have 100% attendance to request a certificate.\nYou attended ${attendanceSummary.split("/")[0]} out of ${attendanceSummary.split("/")[1]} days.`,
+          "error"
+        );
+        return;
+      }
+
       // 🔹 Check Firestore for existing certificate request
       const certQuery = query(
         collection(db, "Certificates"),

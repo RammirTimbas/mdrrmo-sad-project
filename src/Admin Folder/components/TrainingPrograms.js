@@ -149,25 +149,82 @@ const TrainingPrograms = ({ userId }) => {
       }
     );
 
-    const unsubscribeTrainerNames = onSnapshot(
-      collection(db, "Trainer Name"),
-      (trainerNameSnapshot) => {
-        const trainerNameData = trainerNameSnapshot.docs.map(
-          (doc) => doc.data().trainer_name
+    // Fetch all trainers
+    const fetchAvailableTrainers = async () => {
+      try {
+        // Get all trainers
+        const trainerSnapshot = await getDocs(collection(db, "Trainer Name"));
+        const allTrainers = trainerSnapshot.docs.map((doc) => doc.data().trainer_name);
+
+        // Get all programs
+        const programsSnapshot = await getDocs(collection(db, "Training Programs"));
+        const allPrograms = programsSnapshot.docs.map((doc) => doc.data());
+
+        // Helper to check overlap
+        const isTrainerOccupied = (trainer, selectedDates, startDate, endDate, dateMode) => {
+          for (const program of allPrograms) {
+            if (program.trainer_assigned !== trainer) continue;
+
+            // Check for overlap
+            if (dateMode === "specific" && Array.isArray(selectedDates)) {
+              // For each selected date, check if trainer is occupied
+              for (const selDate of selectedDates) {
+                const selMillis = selDate.seconds ? selDate.seconds * 1000 : new Date(selDate).getTime();
+                if (program.selected_dates && program.selected_dates.length > 0) {
+                  for (const progDate of program.selected_dates) {
+                    const progMillis = progDate._seconds ? progDate._seconds * 1000 : (progDate.seconds ? progDate.seconds * 1000 : new Date(progDate).getTime());
+                    if (selMillis === progMillis) return true;
+                  }
+                } else if (program.start_date && program.end_date) {
+                  // If program is ranged, check if selDate falls within range
+                  const progStart = program.start_date * 1000;
+                  const progEnd = program.end_date * 1000;
+                  if (selMillis >= progStart && selMillis <= progEnd) return true;
+                }
+              }
+            } else if (dateMode === "range" && startDate && endDate) {
+              // Check for range overlap
+              const selStart = new Date(startDate).getTime();
+              const selEnd = new Date(endDate).getTime();
+              if (program.selected_dates && program.selected_dates.length > 0) {
+                for (const progDate of program.selected_dates) {
+                  const progMillis = progDate._seconds ? progDate._seconds * 1000 : (progDate.seconds ? progDate.seconds * 1000 : new Date(progDate).getTime());
+                  if (progMillis >= selStart && progMillis <= selEnd) return true;
+                }
+              } else if (program.start_date && program.end_date) {
+                const progStart = program.start_date * 1000;
+                const progEnd = program.end_date * 1000;
+                // Overlap if ranges intersect
+                if (selStart <= progEnd && selEnd >= progStart) return true;
+              }
+            }
+          }
+          return false;
+        };
+
+        // Get selected dates from newProgram
+        const dateMode = newProgram.dateMode;
+        const selectedDates = newProgram.selected_dates;
+        const startDate = newProgram.start_date;
+        const endDate = newProgram.end_date;
+
+        // Filter trainers
+        const availableTrainers = allTrainers.filter((trainer) =>
+          !isTrainerOccupied(trainer, selectedDates, startDate, endDate, dateMode)
         );
-        setTrainerNames(trainerNameData);
-      },
-      (error) => {
-        console.error("Error fetching trainer names:", error);
+        setTrainerNames(availableTrainers);
+      } catch (error) {
+        console.error("Error fetching available trainers:", error);
       }
-    );
+    };
+
+    fetchAvailableTrainers();
 
     // Cleanup listeners when component unmounts
     return () => {
       unsubscribeTrainingTypes();
-      unsubscribeTrainerNames();
     };
-  }, []);
+  }, [newProgram.dateMode, newProgram.selected_dates, newProgram.start_date, newProgram.end_date]);
 
   const handleThumbnailChange = (e) => {
     const file = e.target.files[0];
@@ -808,24 +865,62 @@ const TrainingPrograms = ({ userId }) => {
                       }}
                       className="form-input"
                     />
-                    <div className="requirements-list">
+                    <div
+                      className="requirements-list"
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "8px",
+                        marginTop: "8px",
+                        maxHeight: "80px",
+                        overflowY: "auto",
+                        background: "#f7f7fa",
+                        borderRadius: "8px",
+                        padding: "8px 4px"
+                      }}
+                    >
                       {(newProgram.selected_dates || []).map((date, index) => (
-                        <div key={index} className="requirement-tag">
-                          <span>{new Date(date).toLocaleDateString()}</span>
+                        <div
+                          key={index}
+                          className="requirement-tag"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            background: "#e3f2fd",
+                            borderRadius: "6px",
+                            padding: "4px 10px",
+                            fontSize: "0.95rem",
+                            color: "#1565c0",
+                            boxShadow: "0 1px 4px rgba(21,101,192,0.08)",
+                            margin: "2px 0"
+                          }}
+                        >
+                          <span style={{ fontWeight: 500 }}>{new Date(date).toLocaleDateString()}</span>
                           <button
                             className="remove-btn"
+                            style={{
+                              marginLeft: "8px",
+                              background: "#fff",
+                              border: "none",
+                              color: "#d32f2f",
+                              fontWeight: "bold",
+                              borderRadius: "50%",
+                              width: "22px",
+                              height: "22px",
+                              cursor: "pointer",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.08)"
+                            }}
+                            title="Remove date"
                             onClick={() => {
                               const updatedDates =
-                                newProgram.selected_dates.filter(
-                                  (_, i) => i !== index
-                                );
+                                newProgram.selected_dates.filter((_, i) => i !== index);
                               setNewProgram({
                                 ...newProgram,
                                 selected_dates: updatedDates,
                               });
                             }}
                           >
-                            x
+                            ×
                           </button>
                         </div>
                       ))}
@@ -919,14 +1014,39 @@ const TrainingPrograms = ({ userId }) => {
                     value={newProgram.trainer_assigned}
                     onChange={handleInputChange}
                     required
+                    disabled={
+                      (newProgram.dateMode === "range" && (!newProgram.start_date || !newProgram.end_date)) ||
+                      (newProgram.dateMode === "specific" && (!newProgram.selected_dates || newProgram.selected_dates.length === 0))
+                    }
+                    style={{
+                      backgroundColor:
+                        (newProgram.dateMode === "range" && (!newProgram.start_date || !newProgram.end_date)) ||
+                        (newProgram.dateMode === "specific" && (!newProgram.selected_dates || newProgram.selected_dates.length === 0))
+                          ? "#f3f3f3"
+                          : "#fff",
+                      border: "2px solid #4a90e2",
+                      borderRadius: "8px",
+                      padding: "8px",
+                      fontSize: "1rem",
+                      color: "#333",
+                      marginTop: "4px"
+                    }}
                   >
-                    <option value="">Select Trainer</option>
+                    <option value="">{(newProgram.dateMode === "range" && (!newProgram.start_date || !newProgram.end_date)) ||
+                      (newProgram.dateMode === "specific" && (!newProgram.selected_dates || newProgram.selected_dates.length === 0))
+                      ? "Select date(s) first" : "Select Trainer"}</option>
                     {trainerNames.map((trainer, index) => (
                       <option key={index} value={trainer}>
                         {trainer}
                       </option>
                     ))}
                   </select>
+                  <div style={{ fontSize: "0.9rem", color: "#888", marginTop: "2px" }}>
+                    {((newProgram.dateMode === "range" && (!newProgram.start_date || !newProgram.end_date)) ||
+                      (newProgram.dateMode === "specific" && (!newProgram.selected_dates || newProgram.selected_dates.length === 0))) && (
+                      <span>Please select date(s) before assigning a trainer.</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="form-group">

@@ -235,8 +235,19 @@ export default function RequestProgram({ userId }) {
       return;
     }
 
+    let swalLoading;
     try {
+      swalLoading = Swal.fire({
+        title: 'Submitting Request...',
+        html: '<div style="font-size:1.2rem;">Please wait while we process your request.</div>',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
       if (!userId) {
+        Swal.close();
         Swal.fire("Error", "User not logged in!", "error");
         return;
       }
@@ -292,6 +303,7 @@ export default function RequestProgram({ userId }) {
 
       await addDoc(collection(db, "Training Requests"), requestData);
 
+      Swal.close();
       Swal.fire(
         "Success",
         "Training request submitted successfully!",
@@ -310,6 +322,7 @@ export default function RequestProgram({ userId }) {
       setCustomDates([]);
     } catch (error) {
       console.error("Error submitting request:", error);
+      Swal.close();
       Swal.fire("Error", "Failed to submit request. Try again.", "error");
     }
   };
