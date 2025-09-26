@@ -558,15 +558,13 @@ const VisitorPanel = ({ onLoginClick }) => {
     if (program.start_date && program.end_date) {
       const startMs = toMillis(program.start_date);
       const endMs = toMillis(program.end_date);
-      const endDate = new Date(endMs);
-      const endDateEnd = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999).getTime();
       
       if (now < startMs) {
         const days = Math.ceil((startMs - now) / (1000 * 60 * 60 * 24));
         if (days === 0) return "Today";
         if (days === 1) return "Tomorrow";
         return `Starts in ${days} days`;
-      } else if (now <= endDateEnd) { // Consider program ended only after the full end date has passed
+      } else if (now <= endMs) {
         return "In Progress";
       }
       return "Ended";

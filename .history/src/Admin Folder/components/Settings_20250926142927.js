@@ -63,10 +63,10 @@ const Settings = ({ userId }) => {
   const [files, setFiles] = useState({});
 
   const [selectedType, setSelectedType] = useState("");
-  const [materials, setMaterials] = useState({ 
-    imageUrls: [], 
-    videoUrls: [], 
-    documentUrls: [] 
+  const [materials, setMaterials] = useState({
+    imageUrls: [],
+    videoUrls: [],
+    documentUrls: []
   });
 
   const [uploadProgress, setUploadProgress] = useState({
@@ -403,10 +403,10 @@ const Settings = ({ userId }) => {
               "Training Type",
               typeSnapshot.docs[0].id
             );
-            const updateField = 
-              fileType === "image" ? "imageUrls" : 
-              fileType === "video" ? "videoUrls" : 
-              "documentUrls";
+            const updateField =
+              fileType === "image" ? "imageUrls" :
+                fileType === "video" ? "videoUrls" :
+                  "documentUrls";
 
             await updateDoc(typeDocRef, {
               [updateField]: arrayUnion(downloadURL), // Append new URL to array
@@ -476,10 +476,10 @@ const Settings = ({ userId }) => {
 
       if (!typeSnapshot.empty) {
         const typeDocRef = doc(db, "Training Type", typeSnapshot.docs[0].id);
-        const updateField = 
-          fileType === "image" ? "imageUrls" : 
-          fileType === "video" ? "videoUrls" : 
-          "documentUrls";
+        const updateField =
+          fileType === "image" ? "imageUrls" :
+            fileType === "video" ? "videoUrls" :
+              "documentUrls";
 
         await updateDoc(typeDocRef, {
           [updateField]: arrayRemove(fileUrl), // Remove the specific file URL
@@ -723,7 +723,7 @@ const Settings = ({ userId }) => {
             <h2 className="text-2xl font-semibold text-gray-800 mb-2">Add New Administrator</h2>
             <p className="text-gray-600">Create a new administrator account with specified permissions</p>
           </div>
-          
+
           <div className="space-y-6">
             {/* Name Field */}
             <div className="form-field">
@@ -741,7 +741,7 @@ const Settings = ({ userId }) => {
                 onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })}
                 placeholder="Enter admin name"
                 required
-                style={{ 
+                style={{
                   width: '100%',
                   maxWidth: 'none',
                   boxSizing: 'border-box',
@@ -770,7 +770,7 @@ const Settings = ({ userId }) => {
                 onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
                 placeholder="Enter admin email"
                 required
-                style={{ 
+                style={{
                   width: '100%',
                   maxWidth: 'none',
                   boxSizing: 'border-box',
@@ -784,7 +784,7 @@ const Settings = ({ userId }) => {
             </div>
 
             {/* Password Field */}
-            <div className="form-field">
+            <div className="form-field" style={{ width: '100%', maxWidth: 'none' }}>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <span className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -793,46 +793,14 @@ const Settings = ({ userId }) => {
                   Password
                 </span>
               </label>
-              <input
-                type="text"
-                value={newAdmin.password}
-                onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
-                placeholder="Enter admin password"
-                required
-                style={{ 
-                  width: '100%',
-                  maxWidth: 'none',
-                  boxSizing: 'border-box',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  outline: 'none',
-                  WebkitTextSecurity: 'disc',  // This masks the text like a password field
-                  MozTextSecurity: 'disc',     // Firefox support
-                  textSecurity: 'disc'         // Standard property
-                }}
-                className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              />
-            </div>
-
-            {/* Superuser Password Verification */}
-            <div className="form-field" style={{ width: '100%', maxWidth: 'none' }}>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <span className="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  Superuser Password Verification
-                </span>
-              </label>
-              <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="space-y-4">
                 <input
                   type="password"
-                  value={verifyPassword}
-                  onChange={(e) => setVerifyPassword(e.target.value)}
-                  placeholder="Enter superuser password"
+                  value={newAdmin.password}
+                  onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
+                  placeholder="Enter admin password"
                   required
-                  style={{ 
+                  style={{
                     width: '100%',
                     maxWidth: 'none',
                     boxSizing: 'border-box',
@@ -843,59 +811,90 @@ const Settings = ({ userId }) => {
                   }}
                   className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 />
-                
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <button
-                    onClick={verifyAdminPassword}
-                    className={`flex-1 px-6 py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2
-                      ${isProcessing 
-                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Verifying...
-                      </>
-                    ) : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Verify Password
-                      </>
-                    )}
-                  </button>
-                  
-                  <button
-                    onClick={addNewAdmin}
-                    className={`flex-1 px-6 py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2
+              </div>
+
+              {/* Superuser Password Verification */}
+              <div className="form-field" style={{ width: '100%', maxWidth: 'none' }}>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <span className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    Superuser Password Verification
+                  </span>
+                </label>
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <input
+                    type="password"
+                    value={verifyPassword}
+                    onChange={(e) => setVerifyPassword(e.target.value)}
+                    placeholder="Enter superuser password"
+                    required
+                    style={{
+                      width: '100%',
+                      maxWidth: 'none',
+                      boxSizing: 'border-box',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #D1D5DB',
+                      outline: 'none'
+                    }}
+                    className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  />
+
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button
+                      onClick={verifyAdminPassword}
+                      className={`flex-1 px-6 py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2
+                      ${isProcessing
+                          ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Verifying...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Verify Password
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={addNewAdmin}
+                      className={`flex-1 px-6 py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2
                       ${(isProcessing2 || !passwordVerified || !newAdmin.name || !newAdmin.email || !newAdmin.password)
-                        ? 'bg-blue-300 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700 transform hover:scale-[1.02]'} text-white shadow-md hover:shadow-lg`}
-                    disabled={isProcessing2 || !passwordVerified || !newAdmin.name || !newAdmin.email || !newAdmin.password}
-                  >
-                    {isProcessing2 ? (
-                      <>
-                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                        </svg>
-                        Add Administrator
-                      </>
-                    )}
-                  </button>
+                          ? 'bg-blue-300 cursor-not-allowed'
+                          : 'bg-blue-600 hover:bg-blue-700 transform hover:scale-[1.02]'} text-white shadow-md hover:shadow-lg`}
+                      disabled={isProcessing2 || !passwordVerified || !newAdmin.name || !newAdmin.email || !newAdmin.password}
+                    >
+                      {isProcessing2 ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                          </svg>
+                          Add Administrator
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -910,8 +909,8 @@ const Settings = ({ userId }) => {
             <div>
               <p className="text-gray-600">Upload and manage images for your homepage carousel</p>
             </div>
-            <button 
-              onClick={handleFilePickerClick} 
+            <button
+              onClick={handleFilePickerClick}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -933,7 +932,7 @@ const Settings = ({ userId }) => {
             {carouselImages.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {carouselImages.map((image, index) => (
-                  <div 
+                  <div
                     key={image.name}
                     className="group relative overflow-hidden rounded-xl bg-gray-50 shadow-md transition-all duration-300 hover:shadow-xl transform hover:-translate-y-1"
                   >
@@ -1343,7 +1342,7 @@ const Settings = ({ userId }) => {
                     <h3 className="text-lg font-semibold mb-3">
                       {selectedType} Materials
                     </h3>
-                    
+
                     {/* Images Section */}
                     <div className="mb-8 bg-gray-50 p-4 rounded-lg">
                       <h4 className="text-md font-medium text-gray-700 mb-3 flex items-center">

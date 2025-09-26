@@ -794,7 +794,7 @@ const Settings = ({ userId }) => {
                 </span>
               </label>
               <input
-                type="text"
+                type="password"
                 value={newAdmin.password}
                 onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
                 placeholder="Enter admin password"
@@ -806,10 +806,7 @@ const Settings = ({ userId }) => {
                   padding: '0.5rem 1rem',
                   borderRadius: '0.5rem',
                   border: '1px solid #D1D5DB',
-                  outline: 'none',
-                  WebkitTextSecurity: 'disc',  // This masks the text like a password field
-                  MozTextSecurity: 'disc',     // Firefox support
-                  textSecurity: 'disc'         // Standard property
+                  outline: 'none'
                 }}
                 className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               />

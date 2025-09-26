@@ -741,16 +741,7 @@ const Settings = ({ userId }) => {
                 onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })}
                 placeholder="Enter admin name"
                 required
-                style={{ 
-                  width: '100%',
-                  maxWidth: 'none',
-                  boxSizing: 'border-box',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  outline: 'none'
-                }}
-                className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               />
             </div>
 
@@ -770,16 +761,7 @@ const Settings = ({ userId }) => {
                 onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
                 placeholder="Enter admin email"
                 required
-                style={{ 
-                  width: '100%',
-                  maxWidth: 'none',
-                  boxSizing: 'border-box',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  outline: 'none'
-                }}
-                className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               />
             </div>
 
@@ -794,29 +776,17 @@ const Settings = ({ userId }) => {
                 </span>
               </label>
               <input
-                type="text"
+                type="password"
                 value={newAdmin.password}
                 onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
                 placeholder="Enter admin password"
                 required
-                style={{ 
-                  width: '100%',
-                  maxWidth: 'none',
-                  boxSizing: 'border-box',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  outline: 'none',
-                  WebkitTextSecurity: 'disc',  // This masks the text like a password field
-                  MozTextSecurity: 'disc',     // Firefox support
-                  textSecurity: 'disc'         // Standard property
-                }}
-                className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               />
             </div>
 
             {/* Superuser Password Verification */}
-            <div className="form-field" style={{ width: '100%', maxWidth: 'none' }}>
+            <div className="form-field">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <span className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -825,23 +795,14 @@ const Settings = ({ userId }) => {
                   Superuser Password Verification
                 </span>
               </label>
-              <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="space-y-4 mt-6 pt-6 border-t border-gray-200">
                 <input
                   type="password"
                   value={verifyPassword}
                   onChange={(e) => setVerifyPassword(e.target.value)}
                   placeholder="Enter superuser password"
                   required
-                  style={{ 
-                    width: '100%',
-                    maxWidth: 'none',
-                    boxSizing: 'border-box',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.5rem',
-                    border: '1px solid #D1D5DB',
-                    outline: 'none'
-                  }}
-                  className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 />
                 
                 <div className="flex flex-col sm:flex-row gap-4">

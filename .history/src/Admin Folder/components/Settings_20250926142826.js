@@ -784,7 +784,7 @@ const Settings = ({ userId }) => {
             </div>
 
             {/* Password Field */}
-            <div className="form-field">
+            <div className="form-field" style={{ width: '100%', maxWidth: 'none' }}>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <span className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -793,26 +793,24 @@ const Settings = ({ userId }) => {
                   Password
                 </span>
               </label>
-              <input
-                type="text"
-                value={newAdmin.password}
-                onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
-                placeholder="Enter admin password"
-                required
-                style={{ 
-                  width: '100%',
-                  maxWidth: 'none',
-                  boxSizing: 'border-box',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  outline: 'none',
-                  WebkitTextSecurity: 'disc',  // This masks the text like a password field
-                  MozTextSecurity: 'disc',     // Firefox support
-                  textSecurity: 'disc'         // Standard property
-                }}
-                className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              />
+              <div className="space-y-4">
+                <input
+                  type="password"
+                  value={newAdmin.password}
+                  onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
+                  placeholder="Enter admin password"
+                  required
+                  style={{ 
+                    width: '100%',
+                    maxWidth: 'none',
+                    boxSizing: 'border-box',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #D1D5DB',
+                    outline: 'none'
+                  }}
+                  className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
             </div>
 
             {/* Superuser Password Verification */}

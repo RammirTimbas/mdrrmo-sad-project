@@ -794,24 +794,12 @@ const Settings = ({ userId }) => {
                 </span>
               </label>
               <input
-                type="text"
+                type="password"
                 value={newAdmin.password}
                 onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
                 placeholder="Enter admin password"
                 required
-                style={{ 
-                  width: '100%',
-                  maxWidth: 'none',
-                  boxSizing: 'border-box',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  outline: 'none',
-                  WebkitTextSecurity: 'disc',  // This masks the text like a password field
-                  MozTextSecurity: 'disc',     // Firefox support
-                  textSecurity: 'disc'         // Standard property
-                }}
-                className="focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               />
             </div>
 

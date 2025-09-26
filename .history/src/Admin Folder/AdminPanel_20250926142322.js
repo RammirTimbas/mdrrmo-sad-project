@@ -302,7 +302,7 @@ const AdminPanel = ({ handleSignOut, userId }) => {
             </div>
           </div>
 
-          <main className="admin-content pt-[70px]">
+          <main className="admin-content">
             <Outlet />
             {location.pathname === "/admin" && <Navigate to="dashboard" />}
           </main>
