@@ -110,14 +110,6 @@ const ProgramDetails = ({ userId }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [activePanel, setActivePanel] = useState(0);
   const scrollRef = useRef(null);
-  
-  // States for attendance edit modal
-  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
-  const [selectedAttendance, setSelectedAttendance] = useState({
-    userId: "",
-    date: "",
-    currentStatus: ""
-  });
 
   const handleSlide = (direction) => {
     if (scrollContainerRef.current) {
@@ -271,31 +263,26 @@ const ProgramDetails = ({ userId }) => {
   }, [showQRScanner]);
 
   useEffect(() => {
-    // Get current date in Manila time, set to start of day
-    const manilaDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-    manilaDate.setHours(0, 0, 0, 0);
-    const currentTime = manilaDate.getTime();
+    const currentTime = new Date().getTime(); // Current timestamp in milliseconds
 
     if (program.selected_dates?.length > 0) {
-      // Convert selected dates to Manila time for comparison
+      // ✅ Find the latest date from selected_dates
       const latestDate = Math.max(
-        ...program.selected_dates.map((date) => {
-          const d = new Date((date.seconds || date) * 1000);
-          return new Date(d.toLocaleString("en-US", { timeZone: "Asia/Manila" })).getTime();
-        })
+        ...program.selected_dates.map((date) => date.seconds * 1000)
       );
 
-      setIsProgramCompleted(currentTime > latestDate + 86399000);
+      // ✅ Set the program as completed if the latest date has fully passed (end of that day)
+      setIsProgramCompleted(currentTime > latestDate + 86399000); // Adding 23h 59m 59s
     } else {
-      // Convert program dates to Manila time
-      const startDate = new Date(program.start_date * 1000);
-      const endDate = new Date(program.end_date * 1000);
-      const programStartDate = new Date(startDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })).getTime();
-      const programEndDate = new Date(endDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })).getTime();
+      // ✅ Fallback to checking start_date and end_date
+      const programStartDate = program.start_date * 1000;
+      const programEndDate = program.end_date * 1000;
 
       if (programStartDate === programEndDate) {
+        // ✅ One-day program: Mark as completed only after the day ends (23:59:59)
         setIsProgramCompleted(currentTime > programEndDate + 86399000);
       } else {
+        // ✅ Multi-day program: Mark as completed if end_date has passed
         setIsProgramCompleted(currentTime > programEndDate);
       }
     }
@@ -790,42 +777,34 @@ const ProgramDetails = ({ userId }) => {
 
   // 🔹 Normalize Firestore/epoch dates into JS Date
   const normalizeDates = (program) => {
-    if (!program) return [];
-    
-    // For range mode
-    if (!program.dateMode || program.dateMode === "range") {
+    if (program.dateMode === "range") {
       if (program.start_date && program.end_date) {
-        const dates = [];
-        let current = new Date(program.start_date * 1000);
+        // Generate all dates between start and end (inclusive)
+        const start = new Date(program.start_date * 1000);
         const end = new Date(program.end_date * 1000);
-        
-        // Normalize times to start of day
+        const dates = [];
+        let current = new Date(start);
         current.setHours(0, 0, 0, 0);
         end.setHours(0, 0, 0, 0);
-        
         while (current <= end) {
           dates.push(new Date(current));
-          current = new Date(current);
           current.setDate(current.getDate() + 1);
         }
         return dates;
       }
-    }
-    // For specific dates mode
-    else if (program.dateMode === "specific" && Array.isArray(program.selected_dates)) {
+    } else if (
+      program.dateMode === "specific" &&
+      Array.isArray(program.selected_dates)
+    ) {
       return program.selected_dates
         .map((d) => {
-          let date;
-          if (d?.seconds) date = new Date(d.seconds * 1000);
-          else if (d?._seconds) date = new Date(d._seconds * 1000);
-          else if (typeof d === "number") date = new Date(d * 1000);
-          else date = new Date(d);
-          
-          date.setHours(0, 0, 0, 0);
-          return date;
+          if (d?.seconds) return new Date(d.seconds * 1000);
+          if (d?._seconds) return new Date(d._seconds * 1000);
+          if (typeof d === "number") return new Date(d * 1000);
+          return new Date(d);
         })
-        .filter((d) => !isNaN(d))
-        .sort((a, b) => a - b);
+        .filter((d) => !isNaN(d)) // remove invalid
+        .sort((a, b) => a - b); // keep in order
     }
     return [];
   };
@@ -839,17 +818,21 @@ const ProgramDetails = ({ userId }) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // First try to find today's date by comparing timestamps
-    const todayDate = dateRange.find(date => 
-      date.getTime() === today.getTime()
-    );
+    // First try to find today's date
+    const todayDate = dateRange.find(date => {
+      const dateToCheck = new Date(date);
+      dateToCheck.setHours(0, 0, 0, 0);
+      return dateToCheck.getTime() === today.getTime();
+    });
 
     if (todayDate) return todayDate;
 
     // If today's date is not found, find the next upcoming date
-    const nextDate = dateRange.find(date => 
-      date.getTime() > today.getTime()
-    );
+    const nextDate = dateRange.find(date => {
+      const dateToCheck = new Date(date);
+      dateToCheck.setHours(0, 0, 0, 0);
+      return dateToCheck > today;
+    });
 
     // If no upcoming date found, return the last date in range
     return nextDate || dateRange[dateRange.length - 1];
@@ -901,39 +884,9 @@ const ProgramDetails = ({ userId }) => {
         !program?.approved_applicants ||
         Object.keys(program.approved_applicants).length === 0
       ) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'No Data',
-          text: 'No approved applicants available to generate report.',
-        });
+        console.error("No approved applicants available.");
         return;
       }
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
 
       // Use the same normalizedDates array as the attendance table for export
       let normalizedDates = [];
@@ -1005,23 +958,8 @@ const ProgramDetails = ({ userId }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Show success message
-      Swal.fire({
-        icon: 'success',
-        title: 'Success',
-        text: 'Attendance report has been generated and downloaded.',
-        timer: 2000,
-        showConfirmButton: false
-      });
     } catch (error) {
       console.error("❌ Error downloading attendance report:", error);
-      // Show error message
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to generate attendance report. Please try again.',
-      });
     }
   };
 
@@ -1846,8 +1784,7 @@ const ProgramDetails = ({ userId }) => {
               className={`tab ${activeTab === "attendance" ? "active" : ""} ${!(
                 userRole === "admin" ||
                 userRole === "trainer" ||
-                (userRole === "user" && requestorType?.toLowerCase() === "facilitator") ||
-                (userRole === "user" && isUserApproved)  // Allow approved users
+                (userRole === "user" && requestorType?.toLowerCase() === "facilitator")
               )
                 ? "disabled"
                 : ""
@@ -1855,8 +1792,7 @@ const ProgramDetails = ({ userId }) => {
               onClick={() =>
                 (userRole === "admin" ||
                   userRole === "trainer" ||
-                  (userRole === "user" && requestorType?.toLowerCase() === "facilitator") ||
-                  (userRole === "user" && isUserApproved)) &&  // Allow approved users
+                  (userRole === "user" && requestorType?.toLowerCase() === "facilitator")) &&
                 setActiveTab("attendance")
               }
             >
@@ -2022,30 +1958,23 @@ const ProgramDetails = ({ userId }) => {
                     if (userRole === "admin" || userRole === "trainer" || isFacilitator) {
                       return (
                         <div>
-                          <div className="flex justify-between items-center mb-4">
-                            <div>
-                              <h2 className="text-base sm:text-lg font-semibold">Attendance Overview</h2>
-                              <p className="text-gray-500 text-sm sm:text-base">
-                                Manage attendance for all users.
-                              </p>
-                            </div>
-                            <button
-                              onClick={() => handleDownloadAttendance(normalizedDates, programDetails)}
-                              className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm hover:bg-blue-700 transition-colors flex items-center gap-2 whitespace-nowrap"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                              </svg>
-                              Export Attendance
-                            </button>
-                          </div>
-                          <div className="overflow-x-auto rounded-lg border border-gray-200">
+                          <h2 className="text-base sm:text-lg font-semibold mb-2">Attendance Overview</h2>
+                          <p className="text-gray-500 text-sm sm:text-base mb-4">
+                            Manage attendance for all users.
+                          </p>
+                          <button
+                            onClick={() => handleDownloadAttendance(normalizedDates, programDetails)}
+                            className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm hover:bg-blue-700 transition mb-4"
+                          >
+                            Export to Excel
+                          </button>
+                          <div className="overflow-x-auto">
                             <table className="min-w-full border-collapse text-xs sm:text-sm text-center">
                               <thead className="bg-gray-100">
                                 <tr>
-                                  <th className="px-2 sm:px-4 py-3 border-b border-gray-200">Full Name</th>
+                                  <th className="px-2 sm:px-4 py-2">Full Name</th>
                                   {normalizedDates.map(dateStr => (
-                                    <th key={dateStr} className="px-2 sm:px-4 py-3 border-b border-gray-200">{dateStr}</th>
+                                    <th key={dateStr} className="px-2 sm:px-4 py-2">{dateStr}</th>
                                   ))}
                                 </tr>
                               </thead>
@@ -2053,51 +1982,25 @@ const ProgramDetails = ({ userId }) => {
                                 {allUsersAttendance
                                   .filter(({ user_id }) => userRole === "admin" || userRole === "trainer" || isFacilitator)
                                   .map(({ user_id, attendance, full_name }) => (
-                                    <tr key={user_id} className="border-b hover:bg-gray-50">
-                                      <td className="px-2 sm:px-4 py-3 font-medium">{full_name}</td>
+                                    <tr key={user_id} className="border-b">
+                                      <td className="px-2 sm:px-4 py-2">{full_name}</td>
                                       {normalizedDates.map(dateStr => {
                                         let status = "No Data";
-                                        // Get today's date in Manila timezone and format it as YYYY-MM-DD
-                                        const manilaDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-                                        const today = manilaDate.toLocaleDateString("en-CA");
-                                        
+                                        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
                                         if (attendance && Array.isArray(attendance)) {
                                           attendance.forEach(record => {
                                             if (record.date === dateStr) status = record.remark;
                                           });
                                         }
-                                        
-                                        // Compare dates taking timezone into account
-                                        const dateToCheck = new Date(dateStr);
-                                        const isBeforeToday = dateToCheck < manilaDate;
-                                        if (status === "No Data" && isBeforeToday) status = "absent";
-                                        
+                                        if (status === "No Data" && dateStr < today) status = "absent";
                                         return (
                                           <td
                                             key={`${user_id}_${dateStr}`}
-                                            onClick={() => {
-                                              // Check if user has permission to edit
-                                              if (userRole === "admin" || userRole === "trainer" || 
-                                                  (userRole === "user" && requestorType?.toLowerCase() === "facilitator")) {
-                                                setSelectedAttendance({
-                                                  userId: user_id,
-                                                  date: dateStr,
-                                                  currentStatus: status
-                                                });
-                                                setShowAttendanceModal(true);
-                                              }
-                                            }}
-                                            className={`px-2 sm:px-4 py-3 capitalize relative transition-all duration-200 
-                                              ${(userRole === "admin" || userRole === "trainer" || 
-                                                 (userRole === "user" && requestorType?.toLowerCase() === "facilitator")) 
-                                                ? "cursor-pointer hover:bg-gray-100 hover:shadow-sm group" 
-                                                : "cursor-default"
-                                              }
-                                              ${status === "present"
-                                                ? "text-green-600 font-medium"
-                                                : status === "absent"
-                                                  ? "text-red-600"
-                                                  : "text-gray-400"
+                                            className={`px-2 sm:px-4 py-2 capitalize text-center ${status === "present"
+                                              ? "text-green-600"
+                                              : status === "absent"
+                                                ? "text-red-600"
+                                                : "text-gray-400"
                                               }`}
                                           >
                                             {status}
@@ -2114,64 +2017,41 @@ const ProgramDetails = ({ userId }) => {
                     } else {
                       // Regular user: only see own attendance
                       return (
-                        <div>
-                          <div className="mb-4">
-                            <h2 className="text-base sm:text-lg font-semibold">Your Attendance Record</h2>
-                            <p className="text-gray-500 text-sm sm:text-base">Track your attendance for this program.</p>
-                          </div>
-                          <div className="overflow-x-auto rounded-lg border border-gray-200">
-                            <table className="min-w-full border-collapse text-xs sm:text-sm text-center">
-                              <thead className="bg-gray-100">
-                                <tr>
-                                  <th className="px-2 sm:px-4 py-3 border-b border-gray-200">Date</th>
-                                  <th className="px-2 sm:px-4 py-3 border-b border-gray-200">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {normalizedDates.map(dateStr => {
-                                  let status = "No Data";
-                                  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
-                                  const userAttendance = attendanceData.find(a => a.user_id === userId);
-                                  if (userAttendance && Array.isArray(userAttendance.attendance)) {
-                                    userAttendance.attendance.forEach(record => {
-                                      if (record.date === dateStr) status = record.remark;
-                                    });
-                                  }
-                                  if (status === "No Data" && dateStr < today) status = "absent";
-                                  
-                                  let statusClass = "";
-                                  if (status === "present") {
-                                    statusClass = "bg-green-50 text-green-600 font-medium";
-                                  } else if (status === "absent") {
-                                    statusClass = "bg-red-50 text-red-600";
-                                  } else {
-                                    statusClass = "text-gray-400";
-                                  }
-
-                                  return (
-                                    <tr key={dateStr} className="border-b hover:bg-gray-50">
-                                      <td className="px-2 sm:px-4 py-3 font-medium">{dateStr}</td>
-                                      <td className={`px-2 sm:px-4 py-3 capitalize ${statusClass}`}>
-                                        <span className="inline-flex items-center gap-1">
-                                          {status === "present" && (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                          )}
-                                          {status === "absent" && (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                          )}
-                                          {status}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full border-collapse text-xs sm:text-sm text-center">
+                            <thead className="bg-gray-100">
+                              <tr>
+                                <th className="px-2 sm:px-4 py-2">Date</th>
+                                <th className="px-2 sm:px-4 py-2">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {normalizedDates.map(dateStr => {
+                                let status = "No Data";
+                                const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+                                const userAttendance = attendanceData.find(a => a.user_id === userId);
+                                if (userAttendance && Array.isArray(userAttendance.attendance)) {
+                                  userAttendance.attendance.forEach(record => {
+                                    if (record.date === dateStr) status = record.remark;
+                                  });
+                                }
+                                if (status === "No Data" && dateStr < today) status = "absent";
+                                return (
+                                  <tr key={dateStr}>
+                                    <td className="px-2 sm:px-4 py-2">{dateStr}</td>
+                                    <td className={`px-2 sm:px-4 py-2 capitalize text-center ${status === "present"
+                                      ? "text-green-600"
+                                      : status === "absent"
+                                        ? "text-red-600"
+                                        : "text-gray-400"
+                                      }`}>
+                                      {status}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       );
                     }
@@ -2197,84 +2077,17 @@ const ProgramDetails = ({ userId }) => {
         )}
 
         {showQRModal && (
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 transition-opacity duration-300 p-4 overflow-y-auto"
-            onClick={(e) => e.target === e.currentTarget && setShowQRModal(false)}
-          >
-            <div 
-              className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-auto my-4 transform transition-all duration-300 scale-100 opacity-100"
-              style={{ animation: 'modalSlideIn 0.3s ease-out' }}
-            >
-              {/* Header */}
-              <div className="flex justify-between items-center p-6 border-b border-gray-100">
-                <h3 className="text-xl font-semibold text-gray-800">Attendance QR Code</h3>
-                <button
-                  onClick={() => setShowQRModal(false)}
-                  className="bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors duration-200 p-2 hover:bg-gray-100 rounded-full"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="p-4">
-                {formattedRelevantDate ? (
-                  <div className="space-y-4">
-                    {/* Date Display */}
-                    <div className="bg-blue-50 rounded-xl p-3">
-                      <p className="text-sm text-blue-600 font-medium">Attendance date:</p>
-                      <p className="text-base text-gray-900">
-                        {new Date(formattedRelevantDate).toLocaleDateString(undefined, {
-                          weekday: 'long',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </p>
-                    </div>
-
-                    {/* QR Code */}
-                    <div className="flex justify-center p-3 bg-white rounded-xl border-2 border-dashed border-gray-200">
-                      <div className="relative group">
-                        <QRCodeCanvas
-                          value={`${program.id}-${formattedRelevantDate}`}
-                          size={200}
-                          className="rounded-lg shadow-md transition-transform duration-300 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center text-sm font-medium">
-                          Click to enlarge
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Instructions */}
-                    <div className="text-center text-sm text-gray-500">
-                      Scan this QR code to mark attendance
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-6 px-4">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3">
-                      <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <p className="text-red-500 font-medium text-center">No valid training date for today</p>
-                    <p className="text-gray-500 text-sm mt-2 text-center">Please check the schedule</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="flex justify-end gap-3 p-6 border-t border-gray-100">
-                <button
-                  onClick={() => setShowQRModal(false)}
-                  className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium transition-all duration-200 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200"
-                >
-                  Close
-                </button>
-              </div>
+          <div className="qr-modal">
+            <div className="qr-code-container">
+              <h3>Scan QR Code for Attendance Code: </h3>
+              <p>
+                {relevantDate ? relevantDate.toDateString() : "No valid date"}
+              </p>
+              <QRCodeCanvas
+                value={`${program.id}-${formattedRelevantDate}`}
+                size={256}
+              />
+              <button onClick={() => setShowQRModal(false)}>Close</button>
             </div>
           </div>
         )}
@@ -2702,184 +2515,6 @@ const ProgramDetails = ({ userId }) => {
             <p className="text-gray-600">
               This could take a while, sip a coffee first ☕
             </p>
-          </div>
-        </div>
-      )}
-
-      {/* Attendance Edit Modal */}
-      {showAttendanceModal && (
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 transition-opacity duration-300 overflow-y-auto py-4"
-          onClick={(e) => e.target === e.currentTarget && setShowAttendanceModal(false)}
-        >
-          <div 
-            className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-[calc(100%-2rem)] sm:w-full max-w-md mx-auto my-auto transform transition-all duration-300 scale-100 opacity-100"
-            style={{ animation: 'modalSlideIn 0.3s ease-out' }}
-          >
-            <style>
-              {`
-                @keyframes modalSlideIn {
-                  from {
-                    opacity: 0;
-                    transform: scale(0.95) translateY(-10px);
-                  }
-                  to {
-                    opacity: 1;
-                    transform: scale(1) translateY(0);
-                  }
-                }
-                @keyframes pulse {
-                  0%, 100% { transform: scale(1); }
-                  50% { transform: scale(1.05); }
-                }
-              `}
-            </style>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold text-gray-800">Update Attendance</h3>
-              <button
-                onClick={() => setShowAttendanceModal(false)}
-                className="text-gray-400 bg-gray-100 hover:text-gray-600 transition-colors duration-200 p-2 hover:bg-gray-100 rounded-full"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="space-y-4 mb-6">
-              <div className="bg-gray-50 p-4 rounded-xl">
-                <p className="text-sm text-gray-600 mb-2">Date</p>
-                <p className="font-medium text-gray-900">{selectedAttendance.date}</p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-xl">
-                <p className="text-sm text-gray-600 mb-2">Current Status</p>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                  selectedAttendance.currentStatus === "present" 
-                    ? "bg-green-100 text-green-800" 
-                    : selectedAttendance.currentStatus === "absent"
-                    ? "bg-red-100 text-red-800"
-                    : "bg-gray-100 text-gray-800"
-                }`}>
-                  {selectedAttendance.currentStatus === "present" && (
-                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                  {selectedAttendance.currentStatus === "absent" && (
-                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  )}
-                  {selectedAttendance.currentStatus}
-                </span>
-              </div>
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={(e) => {
-                  const newStatus = selectedAttendance.currentStatus === "present" ? "absent" : "present";
-                  
-                  const userIndex = allUsersAttendance.findIndex(
-                    user => user.user_id === selectedAttendance.userId
-                  );
-
-                  if (userIndex === -1) {
-                    console.error("User not found");
-                    return;
-                  }
-
-                  // Find the application ID for this user
-                  let applicationId = null;
-                  const applicants = programDetails.approved_applicants || {};
-                  for (const [appId, app] of Object.entries(applicants)) {
-                    if (app.user_id === selectedAttendance.userId) {
-                      applicationId = appId;
-                      break;
-                    }
-                  }
-
-                  if (!applicationId) {
-                    console.error("Application ID not found");
-                    return;
-                  }
-
-                  // Get the program ref
-                  const programRef = doc(db, "Training Programs", program.id);
-
-                  // Get the current attendance array or initialize empty
-                  const currentAttendance = allUsersAttendance[userIndex].attendance || [];
-                  
-                  // Remove old attendance record for this date if it exists
-                  const filteredAttendance = currentAttendance.filter(
-                    record => record.date !== selectedAttendance.date
-                  );
-                  
-                  // Add new attendance record
-                  const newAttendanceRecord = { date: selectedAttendance.date, remark: newStatus };
-                  const updatedAttendance = [...filteredAttendance, newAttendanceRecord];
-
-                  // Update in Firestore with loading state
-                  // Get button element and update its state
-                  const buttonElement = e.currentTarget;
-                  buttonElement.disabled = true;
-                  buttonElement.style.animation = 'pulse 1s infinite';
-
-                  updateDoc(programRef, {
-                    [`approved_applicants.${applicationId}.attendance`]: updatedAttendance
-                  })
-                  .then(() => {
-                    buttonElement.style.animation = '';
-                    Swal.fire({
-                      icon: 'success',
-                      title: 'Attendance Updated',
-                      text: 'Attendance status has been successfully updated',
-                      showConfirmButton: false,
-                      timer: 1500,
-                      backdrop: `
-                        rgba(0,0,0,0.4)
-                        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%234CAF50' d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E")
-                        center top/60px no-repeat
-                      `
-                    });
-                    setShowAttendanceModal(false);
-                  })
-                  .catch(error => {
-                    buttonElement.disabled = false;
-                    buttonElement.style.animation = '';
-                    console.error("Error updating attendance:", error);
-                    Swal.fire({
-                      icon: 'error',
-                      title: 'Update Failed',
-                      text: 'Failed to update attendance status',
-                      confirmButtonColor: '#3085d6'
-                    });
-                  });
-                }}
-                className={`relative px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                  selectedAttendance.currentStatus === "present"
-                    ? "bg-red-500 hover:bg-red-600 focus:ring-red-500"
-                    : "bg-green-500 hover:bg-green-600 focus:ring-green-500"
-                }`}
-              >
-                <span className="flex items-center justify-center gap-2">
-                  {selectedAttendance.currentStatus === "present" ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                  Mark as {selectedAttendance.currentStatus === "present" ? "Absent" : "Present"}
-                </span>
-              </button>
-              <button
-                onClick={() => setShowAttendanceModal(false)}
-                className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium transition-all duration-200 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200"
-              >
-                Cancel
-              </button>
-            </div>
           </div>
         </div>
       )}

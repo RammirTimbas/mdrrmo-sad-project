@@ -922,19 +922,6 @@ const ProgramDetails = ({ userId }) => {
         }
       });
 
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
       // Use the same normalizedDates array as the attendance table for export
       let normalizedDates = [];
       if (program.selected_dates?.length > 0) {
@@ -1005,23 +992,8 @@ const ProgramDetails = ({ userId }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Show success message
-      Swal.fire({
-        icon: 'success',
-        title: 'Success',
-        text: 'Attendance report has been generated and downloaded.',
-        timer: 2000,
-        showConfirmButton: false
-      });
     } catch (error) {
       console.error("❌ Error downloading attendance report:", error);
-      // Show error message
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to generate attendance report. Please try again.',
-      });
     }
   };
 

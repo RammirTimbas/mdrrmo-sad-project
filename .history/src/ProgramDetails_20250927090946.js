@@ -901,39 +901,9 @@ const ProgramDetails = ({ userId }) => {
         !program?.approved_applicants ||
         Object.keys(program.approved_applicants).length === 0
       ) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'No Data',
-          text: 'No approved applicants available to generate report.',
-        });
+        console.error("No approved applicants available.");
         return;
       }
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
 
       // Use the same normalizedDates array as the attendance table for export
       let normalizedDates = [];
@@ -1005,23 +975,8 @@ const ProgramDetails = ({ userId }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Show success message
-      Swal.fire({
-        icon: 'success',
-        title: 'Success',
-        text: 'Attendance report has been generated and downloaded.',
-        timer: 2000,
-        showConfirmButton: false
-      });
     } catch (error) {
       console.error("❌ Error downloading attendance report:", error);
-      // Show error message
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to generate attendance report. Please try again.',
-      });
     }
   };
 
@@ -2709,11 +2664,11 @@ const ProgramDetails = ({ userId }) => {
       {/* Attendance Edit Modal */}
       {showAttendanceModal && (
         <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 transition-opacity duration-300 overflow-y-auto py-4"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300"
           onClick={(e) => e.target === e.currentTarget && setShowAttendanceModal(false)}
         >
           <div 
-            className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-[calc(100%-2rem)] sm:w-full max-w-md mx-auto my-auto transform transition-all duration-300 scale-100 opacity-100"
+            className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100"
             style={{ animation: 'modalSlideIn 0.3s ease-out' }}
           >
             <style>

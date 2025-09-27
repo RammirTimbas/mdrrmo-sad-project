@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useRef } from "react";
+import mdrrmo_logo from "./logos/mdrrmo_logo.png";
+import LoginForm from "./LoginForm";
+import RegistrationForm from "./RegistrationForm";
+import loader from "./blue-loader.svg";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FaSearch,
@@ -12,16 +15,21 @@ import {
   FaEye,
   FaUser,
 } from "react-icons/fa";
-import  EventOverview  from "../Admin Folder/components/EventOverview.js";
-import nothing_found_gif from "../lottie-files-anim/no_result.json";
+import nothing_found_gif from "./lottie-files-anim/no_result.json";
 import Lottie from "lottie-react";
-import "../App.css";
+import Header from "./Header";
+import EventOverview from "./Admin Folder/components/EventOverview";
+import "./App.css";
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
-const TrainingProgramView = () => {
+const VisitorPanel = ({ onLoginClick }) => {
+  const [trainingPrograms, setTrainingPrograms] = useState([]);
+  const [loading, setLoading] = useState(true); // loading state
+  const [showLoginForm, setShowLoginForm] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const [showSchedule, setShowSchedule] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Effect to disable body scroll when schedule modal is open
   useEffect(() => {
@@ -34,12 +42,22 @@ const TrainingProgramView = () => {
       document.body.style.overflow = 'unset';
     };
   }, [showSchedule]);
-  const [trainingPrograms, setTrainingPrograms] = useState([]);
-  const [filteredPrograms, setFilteredPrograms] = useState([]);
-  const [images, setCarouselImages] = useState([]);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [showSearchFilterSection, setShowSearchFilterSection] = useState(false);
 
+  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
+  const [userProfile, setUserProfile] = useState(null); // store the user profile ('admin' or 'user')
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showMission, setShowMission] = useState(false);
+  const [headerBackground, setHeaderBackground] = useState("#FFFFFF");
+  const [imgLoading, setImgLoading] = useState(true);
+
+  const [images, setCarouselImages] = useState([]);
+
+  const [upcomingPrograms, setUpcomingPrograms] = useState([]);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const [filteredPrograms, setFilteredPrograms] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
     type: "",
@@ -59,10 +77,9 @@ const TrainingProgramView = () => {
 
   const [showAccordion, setShowAccordion] = useState(false);
   const [activeTab, setActiveTab] = useState(null);
+  const [showSearchFilterSection, setShowSearchFilterSection] = useState(false);
 
   const [showFilters, setShowFilters] = useState(false);
-
-  const navigate = useNavigate();
 
   const [hideEnded, setHideEnded] = useState(false);
 
@@ -89,41 +106,6 @@ const TrainingProgramView = () => {
     // 🔹 Keep the sorting logic (new → upcoming → slots_full → ended)
     return sortPrograms(list);
   };
-
-  // Fetch carousel images
-  useEffect(() => {
-    const fetchImages = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/get-carousel-images`);
-        if (response.ok) {
-          const data = await response.json();
-          setCarouselImages(data);
-        }
-      } catch (error) {
-        console.error("Error fetching images:", error);
-      }
-    };
-
-    fetchImages();
-  }, []);
-
-  // Fetch training programs
-  useEffect(() => {
-    const fetchTrainingPrograms = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/training-programs`);
-        if (response.ok) {
-          const data = await response.json();
-          setTrainingPrograms(data);
-          setFilteredPrograms(data);
-        }
-      } catch (error) {
-        console.error("Error fetching training programs:", error);
-      }
-    };
-
-    fetchTrainingPrograms();
-  }, []);
 
   const applyFilters = (search, filterOptions) => {
     let filtered = trainingPrograms;
@@ -215,8 +197,131 @@ const TrainingProgramView = () => {
     applyFilters(searchQuery, newFilters);
   };
 
-  const handleCardClick = (program) => {
-    navigate(`/user/home/${program.id}`, { state: { program } });
+  useEffect(() => {
+    const fetchImages = async () => {
+      setImgLoading(true);
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/get-carousel-images`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+
+          // Preload all images
+          const preloadPromises = data.map((img) => {
+            return new Promise((resolve, reject) => {
+              const image = new Image();
+              image.src = img.url;
+              image.onload = () => resolve(img); // Resolve with original data
+              image.onerror = reject;
+            });
+          });
+
+          const loadedImages = await Promise.all(preloadPromises);
+          setCarouselImages(loadedImages); // Update state only after preloading
+        } else {
+          console.error("Failed to fetch images");
+        }
+      } catch (error) {
+        console.error("Error fetching images:", error);
+      } finally {
+        setImgLoading(false);
+      }
+    };
+
+    fetchImages();
+  }, []);
+
+  useEffect(() => {
+    const fetchTrainingPrograms = async () => {
+      setLoading(true);
+
+      try {
+        const cachedData = localStorage.getItem("trainingPrograms");
+        const cacheTimestamp = localStorage.getItem(
+          "trainingProgramsTimestamp"
+        );
+        const CACHE_DURATION = 5 * 60 * 1000; // cache every 5 mins
+        const now = Date.now();
+
+        if (
+          cachedData &&
+          cacheTimestamp &&
+          now - cacheTimestamp < CACHE_DURATION
+        ) {
+          setTrainingPrograms(JSON.parse(cachedData));
+          filterUpcomingPrograms(JSON.parse(cachedData));
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/training-programs`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch training programs");
+        }
+        const data = await response.json();
+        setTrainingPrograms(data);
+        filterUpcomingPrograms(data);
+
+        localStorage.setItem("trainingPrograms", JSON.stringify(data));
+        localStorage.setItem("trainingProgramsTimestamp", now.toString());
+      } catch (error) {
+        console.error("Error fetching training programs:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrainingPrograms();
+  }, []);
+
+  const carouselRef = useRef(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const carousel = carouselRef.current;
+      if (!carousel) return;
+
+      const rect = carousel.getBoundingClientRect();
+      const isOverlapping = rect.top <= 0 && rect.bottom > 0;
+
+      setHeaderBackground(isOverlapping ? "transparent" : "white");
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    handleScroll(); // call once on mount
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  const toggleLoginForm = () => {
+    setShowLoginForm((prev) => !prev);
+    setShowRegistrationForm(false);
+  };
+
+  const toggleRegistrationForm = () => {
+    setShowLoginForm(false);
+    setShowRegistrationForm(true);
+  };
+
+  const handleLogin = (profile) => {
+    setUserProfile(profile); // set the user's profile ('admin' or 'user')
+    setLoggedIn(true);
+  };
+
+  // open login form when anything is clicked
+  const handleInteraction = () => {
+    onLoginClick(toggleLoginForm);
   };
 
   const nextImage = () => {
@@ -243,6 +348,82 @@ const TrainingProgramView = () => {
     return () => clearInterval(interval);
   }, [images.length]); // Only re-run if number of images changes
 
+  const toggleMissionVision = () => {
+    setShowMission(!showMission);
+  };
+
+  const scrollToSection = (sectionId) => {
+    const section = document.getElementById(sectionId);
+    if (section) {
+      const sectionOffsetTop = section.offsetTop;
+      const sectionHeight = section.clientHeight;
+      const scrollPosition = sectionOffsetTop + sectionHeight * 0.1;
+
+      window.scrollTo({
+        top: scrollPosition,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  const getPopularPrograms = (programs) => {
+    return programs
+      .filter((program) => program.approved_applicants != null) // filter out programs without approved applicants
+      .sort((a, b) => b.approved_applicants - a.approved_applicants); // sort by approved applicants in descending order
+  };
+
+  const filterUpcomingPrograms = (programs) => {
+    const now = Math.floor(Date.now() / 1000);
+    const upcoming = programs.filter(
+      (program) =>
+        program.start_date &&
+        program.start_date > now &&
+        program.start_date <= now + 7 * 24 * 60 * 60
+    );
+    setUpcomingPrograms(upcoming);
+  };
+
+  const getProgramDate = (program) => {
+    // Specific mode: use selected_dates
+    if (
+      Array.isArray(program.selected_dates) &&
+      program.selected_dates.length > 0
+    ) {
+      const sorted = [...program.selected_dates].sort((a, b) => {
+        const aSec = a.seconds ?? Math.floor(a / 1000);
+        const bSec = b.seconds ?? Math.floor(b / 1000);
+        return aSec - bSec;
+      });
+      const firstDate = sorted[0];
+      const lastDate = sorted[sorted.length - 1];
+
+      const firstStr = new Date(
+        (firstDate.seconds ?? Math.floor(firstDate / 1000)) * 1000
+      ).toLocaleDateString();
+
+      if (sorted.length > 1) {
+        const lastStr = new Date(
+          (lastDate.seconds ?? Math.floor(lastDate / 1000)) * 1000
+        ).toLocaleDateString();
+        return `${firstStr} - ${lastStr}`;
+      }
+      return firstStr;
+    }
+
+    // Range mode: use start_date & end_date
+    if (program.start_date) {
+      const startStr = new Date(program.start_date * 1000).toLocaleDateString();
+      if (program.end_date) {
+        const endStr = new Date(program.end_date * 1000).toLocaleDateString();
+        return `${startStr} - ${endStr}`;
+      }
+      return startStr;
+    }
+
+    return "No Date";
+  };
+
+  // Robustly convert Firestore/various date forms to milliseconds
   const toMillis = (val) => {
     if (!val) return null;
 
@@ -350,49 +531,50 @@ const TrainingProgramView = () => {
 
   // Countdown to next date or show status
   const getDaysUntilStart = (program) => {
-    const now = new Date().setHours(0, 0, 0, 0); // Set to start of day for fair comparison
+    const now = new Date().getTime();
     
     if (program.selected_dates?.length > 0) {
+      // Get all dates including today
       const futureDates = program.selected_dates
-        .map(date => {
-          const ms = toMillis(date);
-          return ms ? new Date(ms).setHours(0, 0, 0, 0) : null;
-        })
-        .filter(ms => ms != null && ms >= now);
+        .map(date => toMillis(date))
+        .filter(ms => {
+          const dateStart = new Date(ms).setHours(0, 0, 0, 0);
+          return dateStart >= now; // Only include future dates
+        });
       
-      const pastDates = program.selected_dates
-        .map(date => {
-          const ms = toMillis(date);
-          return ms ? new Date(ms).setHours(0, 0, 0, 0) : null;
-        })
-        .filter(ms => ms != null && ms < now);
+      // Check if today's date is in the program dates
+      const todayDate = program.selected_dates
+        .map(date => toMillis(date))
+        .find(ms => {
+          const date = new Date(ms);
+          const today = new Date(now);
+          return date.toDateString() === today.toDateString();
+        });
+      
+      if (todayDate) {
+        return "In Progress";
+      }
       
       if (futureDates.length > 0) {
         const nextDate = Math.min(...futureDates);
         const days = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
-        if (days === 0) return "Today";
         if (days === 1) return "Tomorrow";
         return `In ${days} days`;
       }
-      
-      // Check if today is one of the selected dates
-      if (pastDates.includes(now)) {
-        return "In Progress";
-      }
-      
-      return "Completed";
+      return "Completed"; // Only if all dates have fully passed
     }
     
     if (program.start_date && program.end_date) {
-      const startDate = new Date(toMillis(program.start_date)).setHours(0, 0, 0, 0);
-      const endDate = new Date(toMillis(program.end_date)).setHours(0, 0, 0, 0);
+      const startMs = toMillis(program.start_date);
+      const endMs = toMillis(program.end_date);
+      const todayStart = new Date(now).setHours(0, 0, 0, 0);
+      const todayEnd = new Date(now).setHours(23, 59, 59, 999);
       
-      if (now < startDate) {
-        const days = Math.ceil((startDate - now) / (1000 * 60 * 60 * 24));
-        if (days === 0) return "Today";
+      if (now < startMs) {
+        const days = Math.ceil((startMs - now) / (1000 * 60 * 60 * 24));
         if (days === 1) return "Tomorrow";
         return `Starts in ${days} days`;
-      } else if (now <= endDate) {
+      } else if (now >= startMs && now <= endMs) {
         return "In Progress";
       }
       return "Ended";
@@ -410,8 +592,37 @@ const TrainingProgramView = () => {
   const closeModal = () => {
     setActiveFilterModal(null);
   };
+
+  // Detect mobile (simple window width check)
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   return (
     <div className="w-full bg-white">
+      <Header
+        headerBackground={headerBackground}
+        handleInteraction={handleInteraction}
+        scrollToSection={scrollToSection}
+        onLoginClick={onLoginClick}
+        showLogin={true}
+      />
+
+      {showLoginForm && (
+        <LoginForm
+          onClose={onLoginClick}
+          onNoAccount={toggleRegistrationForm}
+          onLogin={handleLogin}
+        />
+      )}
+
+      {showRegistrationForm && (
+        <RegistrationForm onClose={() => setShowRegistrationForm(false)} />
+      )}
 
       <section
         id="carousel"
@@ -440,14 +651,14 @@ const TrainingProgramView = () => {
           <button
             onClick={prevImage}
             className="absolute left-4 top-1/2 transform -translate-y-1/2 
-             text-white text-3xl z-10 bg-black/40 hover:bg-black/60 p-2 rounded-full"
+        text-white text-3xl z-10 bg-black/40 hover:bg-black/60 p-2 rounded-full"
           >
             ❮
           </button>
           <button
             onClick={nextImage}
             className="absolute right-4 top-1/2 transform -translate-y-1/2 
-             text-white text-3xl z-10 bg-black/40 hover:bg-black/60 p-2 rounded-full"
+        text-white text-3xl z-10 bg-black/40 hover:bg-black/60 p-2 rounded-full"
           >
             ❯
           </button>
@@ -464,8 +675,6 @@ const TrainingProgramView = () => {
             Unleashing the Power of the Future
           </h1>
 
-
-
           <p className="text-gray-400 mt-6 max-w-md text-base md:text-lg">
             Apply to MDRRMO training programs anytime, anywhere.
             Our online platform makes the process faster, simpler,
@@ -474,15 +683,10 @@ const TrainingProgramView = () => {
 
           <div className="mt-8 flex gap-4">
             <button
-              onClick={() => {
-                const section = document.getElementById("training-programs");
-                if (section) {
-                  section.scrollIntoView({ behavior: "smooth" });
-                }
-              }}
+              onClick={onLoginClick}
               className="bg-white text-black px-6 py-3 rounded-full font-semibold hover:bg-gray-200 transition"
             >
-              Apply Now!
+              Get Started!
             </button>
             <button
               onClick={() => setShowSchedule(true)}
@@ -494,29 +698,9 @@ const TrainingProgramView = () => {
             </button>
           </div>
         </div>
-
-        {/* Schedule Modal */}
-        {showSchedule && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
-            <div className="fixed inset-0 bg-white overflow-hidden">
-              <button
-                onClick={() => setShowSchedule(false)}
-                className="absolute top-4 left-4 sm:top-6 sm:left-6 flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-all duration-300 text-gray-700"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                <span>Back</span>
-              </button>
-              <div className="p-4 sm:p-6 pt-20">
-                <EventOverview />
-              </div>
-            </div>
-          </div>
-        )}
-
       </section>
 
+      {/*Training Programs Section */}
       <section
         id="training-programs"
         className="px-4 py-8 md:px-16 md:py-12 lg:py-20 bg-white"
@@ -599,7 +783,7 @@ const TrainingProgramView = () => {
               <button
                 onClick={() => setShowStatusDropdown(!showStatusDropdown)}
                 className="pl-4 pr-4 py-2 rounded-full text-sm bg-blue-600 text-white hover:bg-blue-700 
-                       focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-auto transition"
+               focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-auto transition"
               >
                 Status Filter
               </button>
@@ -627,7 +811,7 @@ const TrainingProgramView = () => {
                         damping: 30,
                       }}
                       className="fixed bottom-0 left-0 right-0 w-full max-h-[60%] overflow-y-auto rounded-t-2xl
-                             bg-white border-t border-gray-200 shadow-lg p-4 z-50 sm:hidden"
+                     bg-white border-t border-gray-200 shadow-lg p-4 z-50 sm:hidden"
                     >
                       <h3 className="text-lg font-semibold mb-3">
                         Status Filter
@@ -783,12 +967,13 @@ const TrainingProgramView = () => {
           </AnimatePresence>
         </div>
 
+        {/*Training Programs Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 place-items-center">
           {getDisplayedPrograms().length > 0 ? (
             getDisplayedPrograms().map((program) => (
               <div
                 key={program.id}
-                onClick={() => handleCardClick(program)}
+                onClick={onLoginClick}
                 className="bg-white w-full max-w-xs rounded-2xl border border-gray-200 shadow-md overflow-hidden hover:shadow-xl hover:-translate-y-1 transform transition duration-300 flex flex-col h-[500px]"
               >
                 {/* Thumbnail with Status Banner ABOVE the image */}
@@ -880,11 +1065,11 @@ const TrainingProgramView = () => {
             <div className="col-span-full flex flex-col items-center justify-center w-full py-12">
               <Lottie
                 animationData={nothing_found_gif}
-                className="w-72 h-72"
+                className="w-40 h-40 sm:w-56 sm:h-56 md:w-72 md:h-72"
                 loop={false}
                 autoplay
               />
-              <p className="text-gray-500 mt-4 text-center text-sm">
+              <p className="text-gray-500 mt-4 text-center text-xs sm:text-sm md:text-base">
                 No training programs found.
               </p>
             </div>
@@ -892,6 +1077,7 @@ const TrainingProgramView = () => {
         </div>
       </section>
 
+      {/* Calendar section above mission/vision, with mobile props */}
       <section id="mission-vision" className="max-w-4xl mx-auto my-10 px-6">
         {/* Card Wrapper */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -953,7 +1139,6 @@ const TrainingProgramView = () => {
                         <br />5. Establish a comprehensive data hub for
                         disaster-related information.
                       </p>
-
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -997,7 +1182,6 @@ const TrainingProgramView = () => {
                         5. Serve as a global model for disaster resilience &
                         safety.
                       </p>
-
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -1049,8 +1233,30 @@ const TrainingProgramView = () => {
           </div>
         </footer>
       </section>
+
+      {sidebarOpen && <div className="overlay" onClick={toggleSidebar}></div>}
+
+      {/* Schedule Modal */}
+      {showSchedule && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
+          <div className="fixed inset-0 bg-white overflow-hidden">
+            <button
+              onClick={() => setShowSchedule(false)}
+              className="absolute top-4 left-4 sm:top-6 sm:left-6 flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-all duration-300 text-gray-700"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>Back</span>
+            </button>
+            <div className="p-4 sm:p-6 pt-20">
+              <EventOverview  disableEventClick={true}/>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default TrainingProgramView;
+export default VisitorPanel;

@@ -106,6 +106,7 @@ const ProgramDetails = ({ userId }) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [showLargeQR, setShowLargeQR] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [activePanel, setActivePanel] = useState(0);
@@ -901,39 +902,9 @@ const ProgramDetails = ({ userId }) => {
         !program?.approved_applicants ||
         Object.keys(program.approved_applicants).length === 0
       ) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'No Data',
-          text: 'No approved applicants available to generate report.',
-        });
+        console.error("No approved applicants available.");
         return;
       }
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
 
       // Use the same normalizedDates array as the attendance table for export
       let normalizedDates = [];
@@ -1005,23 +976,8 @@ const ProgramDetails = ({ userId }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Show success message
-      Swal.fire({
-        icon: 'success',
-        title: 'Success',
-        text: 'Attendance report has been generated and downloaded.',
-        timer: 2000,
-        showConfirmButton: false
-      });
     } catch (error) {
       console.error("❌ Error downloading attendance report:", error);
-      // Show error message
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to generate attendance report. Please try again.',
-      });
     }
   };
 
@@ -2198,15 +2154,15 @@ const ProgramDetails = ({ userId }) => {
 
         {showQRModal && (
           <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 transition-opacity duration-300 p-4 overflow-y-auto"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 transition-opacity duration-300 overflow-y-auto py-4"
             onClick={(e) => e.target === e.currentTarget && setShowQRModal(false)}
           >
             <div 
-              className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-auto my-4 transform transition-all duration-300 scale-100 opacity-100"
+              className="bg-white rounded-2xl shadow-2xl w-[calc(100%-2rem)] sm:w-full max-w-sm mx-auto my-auto transform transition-all duration-300 scale-100 opacity-100"
               style={{ animation: 'modalSlideIn 0.3s ease-out' }}
             >
               {/* Header */}
-              <div className="flex justify-between items-center p-6 border-b border-gray-100">
+              <div className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-100">
                 <h3 className="text-xl font-semibold text-gray-800">Attendance QR Code</h3>
                 <button
                   onClick={() => setShowQRModal(false)}
@@ -2236,17 +2192,49 @@ const ProgramDetails = ({ userId }) => {
 
                     {/* QR Code */}
                     <div className="flex justify-center p-3 bg-white rounded-xl border-2 border-dashed border-gray-200">
-                      <div className="relative group">
+                      <div 
+                        className="relative group cursor-pointer" 
+                        onClick={() => setShowLargeQR(true)}
+                      >
                         <QRCodeCanvas
                           value={`${program.id}-${formattedRelevantDate}`}
                           size={200}
                           className="rounded-lg shadow-md transition-transform duration-300 group-hover:scale-105"
                         />
-                        <div className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center text-sm font-medium">
+                        <div className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center gap-2 text-sm font-medium">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m4-3H6" />
+                          </svg>
                           Click to enlarge
                         </div>
                       </div>
                     </div>
+
+                    {/* Large QR Modal */}
+                    {showLargeQR && (
+                      <div 
+                        className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+                        onClick={(e) => e.target === e.currentTarget && setShowLargeQR(false)}
+                      >
+                        <div className="relative max-w-xl w-full mx-auto animate-scale-in">
+                          <div className="flex justify-center">
+                            <QRCodeCanvas
+                              value={`${program.id}-${formattedRelevantDate}`}
+                              size={Math.min(window.innerWidth - 64, 512)}
+                              className="rounded-lg shadow-xl"
+                            />
+                          </div>
+                          <button
+                            onClick={() => setShowLargeQR(false)}
+                            className="absolute top-2 right-2 text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                          >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Instructions */}
                     <div className="text-center text-sm text-gray-500">
@@ -2267,7 +2255,7 @@ const ProgramDetails = ({ userId }) => {
               </div>
 
               {/* Footer */}
-              <div className="flex justify-end gap-3 p-6 border-t border-gray-100">
+              <div className="flex justify-end gap-3 p-4 sm:p-6 border-t border-gray-100">
                 <button
                   onClick={() => setShowQRModal(false)}
                   className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium transition-all duration-200 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200"
@@ -2731,6 +2719,13 @@ const ProgramDetails = ({ userId }) => {
                 @keyframes pulse {
                   0%, 100% { transform: scale(1); }
                   50% { transform: scale(1.05); }
+                }
+                @keyframes scale-in {
+                  from { transform: scale(0.95); opacity: 0; }
+                  to { transform: scale(1); opacity: 1; }
+                }
+                .animate-scale-in {
+                  animation: scale-in 0.2s ease-out forwards;
                 }
               `}
             </style>

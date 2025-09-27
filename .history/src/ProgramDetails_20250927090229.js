@@ -99,7 +99,7 @@ const ProgramDetails = ({ userId }) => {
     ...((materials.videoUrls || []).map(url => ({ type: 'video', url }))),
     ...((materials.imageUrls || []).map(url => ({ type: 'image', url })))
   ];
-  
+
   const documentMaterials = materials.documentUrls || [];
 
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -110,7 +110,7 @@ const ProgramDetails = ({ userId }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [activePanel, setActivePanel] = useState(0);
   const scrollRef = useRef(null);
-  
+
   // States for attendance edit modal
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState({
@@ -791,18 +791,18 @@ const ProgramDetails = ({ userId }) => {
   // 🔹 Normalize Firestore/epoch dates into JS Date
   const normalizeDates = (program) => {
     if (!program) return [];
-    
+
     // For range mode
     if (!program.dateMode || program.dateMode === "range") {
       if (program.start_date && program.end_date) {
         const dates = [];
         let current = new Date(program.start_date * 1000);
         const end = new Date(program.end_date * 1000);
-        
+
         // Normalize times to start of day
         current.setHours(0, 0, 0, 0);
         end.setHours(0, 0, 0, 0);
-        
+
         while (current <= end) {
           dates.push(new Date(current));
           current = new Date(current);
@@ -820,7 +820,7 @@ const ProgramDetails = ({ userId }) => {
           else if (d?._seconds) date = new Date(d._seconds * 1000);
           else if (typeof d === "number") date = new Date(d * 1000);
           else date = new Date(d);
-          
+
           date.setHours(0, 0, 0, 0);
           return date;
         })
@@ -840,14 +840,14 @@ const ProgramDetails = ({ userId }) => {
     today.setHours(0, 0, 0, 0);
 
     // First try to find today's date by comparing timestamps
-    const todayDate = dateRange.find(date => 
+    const todayDate = dateRange.find(date =>
       date.getTime() === today.getTime()
     );
 
     if (todayDate) return todayDate;
 
     // If today's date is not found, find the next upcoming date
-    const nextDate = dateRange.find(date => 
+    const nextDate = dateRange.find(date =>
       date.getTime() > today.getTime()
     );
 
@@ -901,39 +901,9 @@ const ProgramDetails = ({ userId }) => {
         !program?.approved_applicants ||
         Object.keys(program.approved_applicants).length === 0
       ) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'No Data',
-          text: 'No approved applicants available to generate report.',
-        });
+        console.error("No approved applicants available.");
         return;
       }
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
 
       // Use the same normalizedDates array as the attendance table for export
       let normalizedDates = [];
@@ -946,8 +916,8 @@ const ProgramDetails = ({ userId }) => {
       } else if (program.start_date && program.end_date) {
         let current = new Date(program.start_date * 1000);
         let end = new Date(program.end_date * 1000);
-        current.setHours(0,0,0,0);
-        end.setHours(0,0,0,0);
+        current.setHours(0, 0, 0, 0);
+        end.setHours(0, 0, 0, 0);
         while (current <= end) {
           normalizedDates.push(current.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }));
           current.setDate(current.getDate() + 1);
@@ -1005,23 +975,8 @@ const ProgramDetails = ({ userId }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Show success message
-      Swal.fire({
-        icon: 'success',
-        title: 'Success',
-        text: 'Attendance report has been generated and downloaded.',
-        timer: 2000,
-        showConfirmButton: false
-      });
     } catch (error) {
       console.error("❌ Error downloading attendance report:", error);
-      // Show error message
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to generate attendance report. Please try again.',
-      });
     }
   };
 
@@ -1749,28 +1704,28 @@ const ProgramDetails = ({ userId }) => {
                   Mark Attendance
                 </button>
               )}
-              
+
               {/* For non-approved users - Show apply and upload buttons */}
-              {!isProgramCompleted && 
-                !isUserApproved && 
+              {!isProgramCompleted &&
+                !isUserApproved &&
                 requestorType?.toLowerCase() !== "facilitator" && (
-                <>
-                  <button
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow"
-                    onClick={handleApply}
-                    disabled={isApplyDisabled}
-                  >
-                    Apply Now
-                  </button>
-                  <button
-                    className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg shadow"
-                    onClick={() => setShowUploadModal(true)}
-                    disabled={requirements.length === 0}
-                  >
-                    Upload Requirements
-                  </button>
-                </>
-              )}
+                  <>
+                    <button
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow"
+                      onClick={handleApply}
+                      disabled={isApplyDisabled}
+                    >
+                      Apply Now
+                    </button>
+                    <button
+                      className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg shadow"
+                      onClick={() => setShowUploadModal(true)}
+                      disabled={requirements.length === 0}
+                    >
+                      Upload Requirements
+                    </button>
+                  </>
+                )}
               {isUserRequestor && (
                 <>
                   <button
@@ -2009,8 +1964,8 @@ const ProgramDetails = ({ userId }) => {
                       // Range mode
                       let current = new Date(programDetails.start_date * 1000);
                       let end = new Date(programDetails.end_date * 1000);
-                      current.setHours(0,0,0,0);
-                      end.setHours(0,0,0,0);
+                      current.setHours(0, 0, 0, 0);
+                      end.setHours(0, 0, 0, 0);
                       while (current <= end) {
                         normalizedDates.push(current.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }));
                         current.setDate(current.getDate() + 1);
@@ -2060,25 +2015,25 @@ const ProgramDetails = ({ userId }) => {
                                         // Get today's date in Manila timezone and format it as YYYY-MM-DD
                                         const manilaDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
                                         const today = manilaDate.toLocaleDateString("en-CA");
-                                        
+
                                         if (attendance && Array.isArray(attendance)) {
                                           attendance.forEach(record => {
                                             if (record.date === dateStr) status = record.remark;
                                           });
                                         }
-                                        
+
                                         // Compare dates taking timezone into account
                                         const dateToCheck = new Date(dateStr);
                                         const isBeforeToday = dateToCheck < manilaDate;
                                         if (status === "No Data" && isBeforeToday) status = "absent";
-                                        
+
                                         return (
                                           <td
                                             key={`${user_id}_${dateStr}`}
                                             onClick={() => {
                                               // Check if user has permission to edit
-                                              if (userRole === "admin" || userRole === "trainer" || 
-                                                  (userRole === "user" && requestorType?.toLowerCase() === "facilitator")) {
+                                              if (userRole === "admin" || userRole === "trainer" ||
+                                                (userRole === "user" && requestorType?.toLowerCase() === "facilitator")) {
                                                 setSelectedAttendance({
                                                   userId: user_id,
                                                   date: dateStr,
@@ -2088,9 +2043,9 @@ const ProgramDetails = ({ userId }) => {
                                               }
                                             }}
                                             className={`px-2 sm:px-4 py-3 capitalize relative transition-all duration-200 
-                                              ${(userRole === "admin" || userRole === "trainer" || 
-                                                 (userRole === "user" && requestorType?.toLowerCase() === "facilitator")) 
-                                                ? "cursor-pointer hover:bg-gray-100 hover:shadow-sm group" 
+                                              ${(userRole === "admin" || userRole === "trainer" ||
+                                                (userRole === "user" && requestorType?.toLowerCase() === "facilitator"))
+                                                ? "cursor-pointer hover:bg-gray-100 hover:shadow-sm group"
                                                 : "cursor-default"
                                               }
                                               ${status === "present"
@@ -2138,7 +2093,7 @@ const ProgramDetails = ({ userId }) => {
                                     });
                                   }
                                   if (status === "No Data" && dateStr < today) status = "absent";
-                                  
+
                                   let statusClass = "";
                                   if (status === "present") {
                                     statusClass = "bg-green-50 text-green-600 font-medium";
@@ -2197,84 +2152,21 @@ const ProgramDetails = ({ userId }) => {
         )}
 
         {showQRModal && (
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 transition-opacity duration-300 p-4 overflow-y-auto"
-            onClick={(e) => e.target === e.currentTarget && setShowQRModal(false)}
-          >
-            <div 
-              className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-auto my-4 transform transition-all duration-300 scale-100 opacity-100"
-              style={{ animation: 'modalSlideIn 0.3s ease-out' }}
-            >
-              {/* Header */}
-              <div className="flex justify-between items-center p-6 border-b border-gray-100">
-                <h3 className="text-xl font-semibold text-gray-800">Attendance QR Code</h3>
-                <button
-                  onClick={() => setShowQRModal(false)}
-                  className="bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors duration-200 p-2 hover:bg-gray-100 rounded-full"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="p-4">
-                {formattedRelevantDate ? (
-                  <div className="space-y-4">
-                    {/* Date Display */}
-                    <div className="bg-blue-50 rounded-xl p-3">
-                      <p className="text-sm text-blue-600 font-medium">Attendance date:</p>
-                      <p className="text-base text-gray-900">
-                        {new Date(formattedRelevantDate).toLocaleDateString(undefined, {
-                          weekday: 'long',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </p>
-                    </div>
-
-                    {/* QR Code */}
-                    <div className="flex justify-center p-3 bg-white rounded-xl border-2 border-dashed border-gray-200">
-                      <div className="relative group">
-                        <QRCodeCanvas
-                          value={`${program.id}-${formattedRelevantDate}`}
-                          size={200}
-                          className="rounded-lg shadow-md transition-transform duration-300 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center text-sm font-medium">
-                          Click to enlarge
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Instructions */}
-                    <div className="text-center text-sm text-gray-500">
-                      Scan this QR code to mark attendance
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-6 px-4">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3">
-                      <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <p className="text-red-500 font-medium text-center">No valid training date for today</p>
-                    <p className="text-gray-500 text-sm mt-2 text-center">Please check the schedule</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="flex justify-end gap-3 p-6 border-t border-gray-100">
-                <button
-                  onClick={() => setShowQRModal(false)}
-                  className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium transition-all duration-200 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200"
-                >
-                  Close
-                </button>
-              </div>
+          <div className="qr-modal">
+            <div className="qr-code-container">
+              <h3>Scan QR Code for Attendance</h3>
+              {formattedRelevantDate ? (
+                <>
+                  <p>Date: {new Date(formattedRelevantDate).toLocaleDateString()}</p>
+                  <QRCodeCanvas
+                    value={`${program.id}-${formattedRelevantDate}`}
+                    size={256}
+                  />
+                </>
+              ) : (
+                <p className="text-red-500">No valid training date for today</p>
+              )}
+              <button onClick={() => setShowQRModal(false)}>Close</button>
             </div>
           </div>
         )}
@@ -2574,14 +2466,14 @@ const ProgramDetails = ({ userId }) => {
       {(!loading && (materials.videoUrls.length > 0 || materials.imageUrls.length > 0 || materials.documentUrls?.length > 0)) && (
         <div className="mt-6 bg-white rounded-xl shadow-lg p-4">
           <h2 className="text-xl font-semibold mb-4">Training Materials</h2>
-          
+
           {/* Media Gallery */}
           {(materials.videoUrls.length > 0 || materials.imageUrls.length > 0) && (
             <div className="mb-6">
               <h3 className="text-lg font-medium mb-3">Media</h3>
               <div className="relative">
-                <div 
-                  ref={scrollContainerRef} 
+                <div
+                  ref={scrollContainerRef}
                   className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide snap-x snap-mandatory"
                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
@@ -2589,8 +2481,8 @@ const ProgramDetails = ({ userId }) => {
                     ...(materials.videoUrls || []).map(url => ({ type: 'video', url })),
                     ...(materials.imageUrls || []).map(url => ({ type: 'image', url }))
                   ].map((material, index) => (
-                    <div 
-                      key={index} 
+                    <div
+                      key={index}
                       className="flex-none w-[300px] h-[200px] relative snap-center rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow"
                     >
                       {material.type === 'video' ? (
@@ -2638,7 +2530,7 @@ const ProgramDetails = ({ userId }) => {
               </div>
             </div>
           )}
-          
+
           {/* Documents Section */}
           <div className={`${(materials.videoUrls.length > 0 || materials.imageUrls.length > 0) ? 'mt-8 pt-6 border-t border-gray-200' : ''}`}>
             <h3 className="text-lg font-medium mb-3">Documents</h3>
@@ -2651,7 +2543,7 @@ const ProgramDetails = ({ userId }) => {
                       console.error('Invalid document URL:', doc);
                       return null;
                     }
-                    
+
                     return (
                       <a
                         key={index}
@@ -2708,12 +2600,12 @@ const ProgramDetails = ({ userId }) => {
 
       {/* Attendance Edit Modal */}
       {showAttendanceModal && (
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 transition-opacity duration-300 overflow-y-auto py-4"
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300"
           onClick={(e) => e.target === e.currentTarget && setShowAttendanceModal(false)}
         >
-          <div 
-            className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-[calc(100%-2rem)] sm:w-full max-w-md mx-auto my-auto transform transition-all duration-300 scale-100 opacity-100"
+          <div
+            className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100"
             style={{ animation: 'modalSlideIn 0.3s ease-out' }}
           >
             <style>
@@ -2738,12 +2630,26 @@ const ProgramDetails = ({ userId }) => {
               <h3 className="text-xl font-semibold text-gray-800">Update Attendance</h3>
               <button
                 onClick={() => setShowAttendanceModal(false)}
-                className="text-gray-400 bg-gray-100 hover:text-gray-600 transition-colors duration-200 p-2 hover:bg-gray-100 rounded-full"
+                className="relative flex items-center justify-center w-9 h-9 rounded-full 
+             bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-800 
+             transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
+                <span className="sr-only">Close</span>
               </button>
+
             </div>
             <div className="space-y-4 mb-6">
               <div className="bg-gray-50 p-4 rounded-xl">
@@ -2752,13 +2658,12 @@ const ProgramDetails = ({ userId }) => {
               </div>
               <div className="bg-gray-50 p-4 rounded-xl">
                 <p className="text-sm text-gray-600 mb-2">Current Status</p>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                  selectedAttendance.currentStatus === "present" 
-                    ? "bg-green-100 text-green-800" 
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${selectedAttendance.currentStatus === "present"
+                    ? "bg-green-100 text-green-800"
                     : selectedAttendance.currentStatus === "absent"
-                    ? "bg-red-100 text-red-800"
-                    : "bg-gray-100 text-gray-800"
-                }`}>
+                      ? "bg-red-100 text-red-800"
+                      : "bg-gray-100 text-gray-800"
+                  }`}>
                   {selectedAttendance.currentStatus === "present" && (
                     <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
@@ -2777,7 +2682,7 @@ const ProgramDetails = ({ userId }) => {
               <button
                 onClick={(e) => {
                   const newStatus = selectedAttendance.currentStatus === "present" ? "absent" : "present";
-                  
+
                   const userIndex = allUsersAttendance.findIndex(
                     user => user.user_id === selectedAttendance.userId
                   );
@@ -2807,12 +2712,12 @@ const ProgramDetails = ({ userId }) => {
 
                   // Get the current attendance array or initialize empty
                   const currentAttendance = allUsersAttendance[userIndex].attendance || [];
-                  
+
                   // Remove old attendance record for this date if it exists
                   const filteredAttendance = currentAttendance.filter(
                     record => record.date !== selectedAttendance.date
                   );
-                  
+
                   // Add new attendance record
                   const newAttendanceRecord = { date: selectedAttendance.date, remark: newStatus };
                   const updatedAttendance = [...filteredAttendance, newAttendanceRecord];
@@ -2826,39 +2731,38 @@ const ProgramDetails = ({ userId }) => {
                   updateDoc(programRef, {
                     [`approved_applicants.${applicationId}.attendance`]: updatedAttendance
                   })
-                  .then(() => {
-                    buttonElement.style.animation = '';
-                    Swal.fire({
-                      icon: 'success',
-                      title: 'Attendance Updated',
-                      text: 'Attendance status has been successfully updated',
-                      showConfirmButton: false,
-                      timer: 1500,
-                      backdrop: `
+                    .then(() => {
+                      buttonElement.style.animation = '';
+                      Swal.fire({
+                        icon: 'success',
+                        title: 'Attendance Updated',
+                        text: 'Attendance status has been successfully updated',
+                        showConfirmButton: false,
+                        timer: 1500,
+                        backdrop: `
                         rgba(0,0,0,0.4)
                         url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%234CAF50' d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E")
                         center top/60px no-repeat
                       `
+                      });
+                      setShowAttendanceModal(false);
+                    })
+                    .catch(error => {
+                      buttonElement.disabled = false;
+                      buttonElement.style.animation = '';
+                      console.error("Error updating attendance:", error);
+                      Swal.fire({
+                        icon: 'error',
+                        title: 'Update Failed',
+                        text: 'Failed to update attendance status',
+                        confirmButtonColor: '#3085d6'
+                      });
                     });
-                    setShowAttendanceModal(false);
-                  })
-                  .catch(error => {
-                    buttonElement.disabled = false;
-                    buttonElement.style.animation = '';
-                    console.error("Error updating attendance:", error);
-                    Swal.fire({
-                      icon: 'error',
-                      title: 'Update Failed',
-                      text: 'Failed to update attendance status',
-                      confirmButtonColor: '#3085d6'
-                    });
-                  });
                 }}
-                className={`relative px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                  selectedAttendance.currentStatus === "present"
+                className={`relative px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 ${selectedAttendance.currentStatus === "present"
                     ? "bg-red-500 hover:bg-red-600 focus:ring-red-500"
                     : "bg-green-500 hover:bg-green-600 focus:ring-green-500"
-                }`}
+                  }`}
               >
                 <span className="flex items-center justify-center gap-2">
                   {selectedAttendance.currentStatus === "present" ? (

@@ -237,23 +237,9 @@ const TrainerDashboard = ({ userId }) => {
                       alt={program.program_title}
                       className="w-full h-44 object-cover"
                     />
-                    <div className="absolute top-3 right-3 flex gap-2">
-                      {category === 'upcoming' && (
-                        <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full shadow flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {getDaysUntilStart(program)} days left
-                        </span>
-                      )}
-                      <span className={`text-white text-xs px-3 py-1 rounded-full shadow ${
-                        category === 'ongoing' ? 'bg-blue-500' :
-                        category === 'upcoming' ? 'bg-emerald-600' :
-                        'bg-gray-500'
-                      }`}>
-                        {program.type || "Training"}
-                      </span>
-                    </div>
+                    <span className="absolute top-3 right-3 bg-blue-600 text-white text-xs px-3 py-1 rounded-full shadow">
+                      {program.type || "Training"}
+                    </span>
                   </div>
                   <div className="p-5">
                     <h3 className="text-lg font-bold text-gray-800 mb-2">

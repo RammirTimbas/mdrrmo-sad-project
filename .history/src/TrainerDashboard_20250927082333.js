@@ -217,10 +217,12 @@ const TrainerDashboard = ({ userId }) => {
       </h2>
 
       {Object.keys(filteredPrograms).map((category) => (
-        <div key={category} className="mb-12">
-          <h3 className="text-xl font-semibold mb-5 text-white px-4 py-2 rounded-lg inline-block bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md">
-            {category.toUpperCase()} Programs
-          </h3>
+        <div key={category} className="mb-12 relative">
+          <div className="sticky top-0 z-10 py-4 bg-gray-50/95 backdrop-blur-sm">
+            <h3 className="text-xl font-semibold text-white px-4 py-2 rounded-lg inline-block bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md">
+              {category.toUpperCase()} Programs
+            </h3>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-6">
             {filteredPrograms[category].length > 0 ? (

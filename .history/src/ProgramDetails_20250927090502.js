@@ -901,39 +901,9 @@ const ProgramDetails = ({ userId }) => {
         !program?.approved_applicants ||
         Object.keys(program.approved_applicants).length === 0
       ) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'No Data',
-          text: 'No approved applicants available to generate report.',
-        });
+        console.error("No approved applicants available.");
         return;
       }
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
-      // Show loading state
-      Swal.fire({
-        title: 'Generating Report',
-        html: 'Please wait while we generate your attendance report...',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
 
       // Use the same normalizedDates array as the attendance table for export
       let normalizedDates = [];
@@ -1005,23 +975,8 @@ const ProgramDetails = ({ userId }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Show success message
-      Swal.fire({
-        icon: 'success',
-        title: 'Success',
-        text: 'Attendance report has been generated and downloaded.',
-        timer: 2000,
-        showConfirmButton: false
-      });
     } catch (error) {
       console.error("❌ Error downloading attendance report:", error);
-      // Show error message
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to generate attendance report. Please try again.',
-      });
     }
   };
 
@@ -2198,11 +2153,11 @@ const ProgramDetails = ({ userId }) => {
 
         {showQRModal && (
           <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 transition-opacity duration-300 p-4 overflow-y-auto"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300 p-4"
             onClick={(e) => e.target === e.currentTarget && setShowQRModal(false)}
           >
             <div 
-              className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-auto my-4 transform transition-all duration-300 scale-100 opacity-100"
+              className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-auto transform transition-all duration-300 scale-100 opacity-100"
               style={{ animation: 'modalSlideIn 0.3s ease-out' }}
             >
               {/* Header */}
@@ -2210,7 +2165,7 @@ const ProgramDetails = ({ userId }) => {
                 <h3 className="text-xl font-semibold text-gray-800">Attendance QR Code</h3>
                 <button
                   onClick={() => setShowQRModal(false)}
-                  className="bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors duration-200 p-2 hover:bg-gray-100 rounded-full"
+                  className="text-gray-400 hover:text-gray-600 transition-colors duration-200 p-2 hover:bg-gray-100 rounded-full"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -2219,27 +2174,28 @@ const ProgramDetails = ({ userId }) => {
               </div>
 
               {/* Content */}
-              <div className="p-4">
+              <div className="p-6">
                 {formattedRelevantDate ? (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {/* Date Display */}
-                    <div className="bg-blue-50 rounded-xl p-3">
-                      <p className="text-sm text-blue-600 font-medium">Attendance date:</p>
-                      <p className="text-base text-gray-900">
+                    <div className="bg-blue-50 rounded-xl p-4">
+                      <p className="text-sm text-blue-600 font-medium mb-1">Training Date</p>
+                      <p className="text-lg text-gray-900">
                         {new Date(formattedRelevantDate).toLocaleDateString(undefined, {
                           weekday: 'long',
-                          month: 'short',
+                          year: 'numeric',
+                          month: 'long',
                           day: 'numeric'
                         })}
                       </p>
                     </div>
 
                     {/* QR Code */}
-                    <div className="flex justify-center p-3 bg-white rounded-xl border-2 border-dashed border-gray-200">
+                    <div className="flex justify-center p-4 bg-white rounded-xl border-2 border-dashed border-gray-200">
                       <div className="relative group">
                         <QRCodeCanvas
                           value={`${program.id}-${formattedRelevantDate}`}
-                          size={200}
+                          size={256}
                           className="rounded-lg shadow-md transition-transform duration-300 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center text-sm font-medium">
@@ -2250,18 +2206,18 @@ const ProgramDetails = ({ userId }) => {
 
                     {/* Instructions */}
                     <div className="text-center text-sm text-gray-500">
-                      Scan this QR code to mark attendance
+                      Scan this QR code using your device's camera to mark attendance
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-6 px-4">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3">
-                      <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex flex-col items-center justify-center py-8 px-4">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                      <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                     <p className="text-red-500 font-medium text-center">No valid training date for today</p>
-                    <p className="text-gray-500 text-sm mt-2 text-center">Please check the schedule</p>
+                    <p className="text-gray-500 text-sm mt-2 text-center">Please check the training schedule</p>
                   </div>
                 )}
               </div>
@@ -2709,11 +2665,11 @@ const ProgramDetails = ({ userId }) => {
       {/* Attendance Edit Modal */}
       {showAttendanceModal && (
         <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 transition-opacity duration-300 overflow-y-auto py-4"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300"
           onClick={(e) => e.target === e.currentTarget && setShowAttendanceModal(false)}
         >
           <div 
-            className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-[calc(100%-2rem)] sm:w-full max-w-md mx-auto my-auto transform transition-all duration-300 scale-100 opacity-100"
+            className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 opacity-100"
             style={{ animation: 'modalSlideIn 0.3s ease-out' }}
           >
             <style>

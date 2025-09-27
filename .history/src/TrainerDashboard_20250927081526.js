@@ -8,8 +8,10 @@ const TrainerDashboard = ({ userId }) => {
   const [trainingPrograms, setTrainingPrograms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filteredPrograms, setFilteredPrograms] = useState({
-    ongoing: [],
-    upcoming: [],
+    today: [],
+    week: [],
+    month: [],
+    all: [],
     past: [],
   });
 
@@ -20,55 +22,70 @@ const TrainerDashboard = ({ userId }) => {
     });
   };
 
-  const getDaysUntilStart = (program) => {
+  const categorizePrograms = () => {
+    // Get current timestamp in seconds
     const now = Math.floor(Date.now() / 1000);
     
-    // Get start timestamp based on program type
-    let startTs;
-    if (program.dateMode === "range") {
-      startTs = program._normStart;
-    } else if (program.dateMode === "specific" && Array.isArray(program.selected_dates)) {
-      const futureDates = program.selected_dates
-        .map(d => d?._seconds ?? d?.seconds ?? (typeof d === "number" ? d : null))
-        .filter(ts => ts && ts > now)
-        .sort((a, b) => a - b);
-      startTs = futureDates[0];
-    }
-
-    if (!startTs) return null;
-
-    const daysUntil = Math.ceil((startTs - now) / (24 * 3600));
-    return daysUntil > 0 ? daysUntil : null;
-  };
-
-  const categorizePrograms = () => {
-    const now = Math.floor(Date.now() / 1000);
+    // Start of today (midnight)
     const todayStart = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
     const todayEnd = todayStart + 86399; // End of today (23:59:59)
 
-    const ongoingPrograms = [];
-    const upcomingPrograms = [];
+    // Calculate start of this week (Sunday)
+    const startOfWeek = Math.floor(
+      new Date(new Date().setDate(new Date().getDate() - new Date().getDay()))
+        .setHours(0, 0, 0, 0) / 1000
+    );
+    const endOfWeek = startOfWeek + (6 * 86400) + 86399; // End of Saturday
+
+    // Calculate start and end of month
+    const startOfMonth = Math.floor(
+      new Date(new Date().getFullYear(), new Date().getMonth(), 1).setHours(0, 0, 0, 0) / 1000
+    );
+    const endOfMonth = Math.floor(
+      new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).setHours(23, 59, 59, 999) / 1000
+    );
+
+    const todayPrograms = [];
+    const weekPrograms = [];
+    const monthPrograms = [];
     const pastPrograms = [];
+    const upcomingPrograms = [];
 
     trainingPrograms.forEach((program) => {
+      // Skip if program has no valid dates
       if (!program._normStart || !program._normEnd) return;
 
       if (program.dateMode === "range") {
         const startDate = program._normStart;
         const endDate = program._normEnd;
 
-        // Ongoing programs (happening today)
-        if (startDate <= now && endDate >= now) {
-          ongoingPrograms.push(program);
+        // Program is currently active today
+        if (startDate <= todayEnd && endDate >= todayStart) {
+          todayPrograms.push(program);
+          return;
         }
-        // Past programs
-        else if (endDate < now) {
+
+        // Past program
+        if (endDate < todayStart) {
           pastPrograms.push(program);
+          return;
         }
-        // Upcoming programs
-        else if (startDate > now) {
-          upcomingPrograms.push(program);
+
+        // This week's programs (excluding today)
+        if (startDate > todayEnd && startDate <= endOfWeek) {
+          weekPrograms.push(program);
+          return;
         }
+
+        // This month's programs (excluding this week)
+        if (startDate > endOfWeek && startDate <= endOfMonth) {
+          monthPrograms.push(program);
+          return;
+        }
+
+        // Future programs
+        upcomingPrograms.push(program);
+
       } else if (program.dateMode === "specific" && Array.isArray(program.selected_dates)) {
         const dateSecs = program.selected_dates
           .map((d) => d?._seconds ?? d?.seconds ?? (typeof d === "number" ? d : null))
@@ -78,27 +95,40 @@ const TrainerDashboard = ({ userId }) => {
         if (dateSecs.length === 0) return;
 
         // Has dates today
-        const hasOngoing = dateSecs.some(d => d >= todayStart && d <= todayEnd);
-        const hasFuture = dateSecs.some(d => d > now);
-        const allPast = dateSecs.every(d => d < now);
-
-        if (hasOngoing) {
-          ongoingPrograms.push(program);
-        } else if (allPast) {
-          pastPrograms.push(program);
-        } else if (hasFuture) {
-          upcomingPrograms.push(program);
+        if (dateSecs.some(d => d >= todayStart && d <= todayEnd)) {
+          todayPrograms.push(program);
+          return;
         }
+
+        // All dates are in the past
+        if (dateSecs[dateSecs.length - 1] < todayStart) {
+          pastPrograms.push(program);
+          return;
+        }
+
+        // Has dates this week (excluding today)
+        if (dateSecs.some(d => d > todayEnd && d <= endOfWeek)) {
+          weekPrograms.push(program);
+          return;
+        }
+
+        // Has dates this month (excluding this week)
+        if (dateSecs.some(d => d > endOfWeek && d <= endOfMonth)) {
+          monthPrograms.push(program);
+          return;
+        }
+
+        // Future dates only
+        upcomingPrograms.push(program);
       }
     });
 
-    // Sort upcoming programs by start date
-    upcomingPrograms.sort((a, b) => (a._normStart || 0) - (b._normStart || 0));
-
     setFilteredPrograms({
-      ongoing: ongoingPrograms,
-      upcoming: upcomingPrograms,
+      today: todayPrograms,
+      week: weekPrograms,
+      month: monthPrograms,
       past: pastPrograms,
+      all: allPrograms,
     });
   };
 
@@ -237,23 +267,9 @@ const TrainerDashboard = ({ userId }) => {
                       alt={program.program_title}
                       className="w-full h-44 object-cover"
                     />
-                    <div className="absolute top-3 right-3 flex gap-2">
-                      {category === 'upcoming' && (
-                        <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full shadow flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {getDaysUntilStart(program)} days left
-                        </span>
-                      )}
-                      <span className={`text-white text-xs px-3 py-1 rounded-full shadow ${
-                        category === 'ongoing' ? 'bg-blue-500' :
-                        category === 'upcoming' ? 'bg-emerald-600' :
-                        'bg-gray-500'
-                      }`}>
-                        {program.type || "Training"}
-                      </span>
-                    </div>
+                    <span className="absolute top-3 right-3 bg-blue-600 text-white text-xs px-3 py-1 rounded-full shadow">
+                      {program.type || "Training"}
+                    </span>
                   </div>
                   <div className="p-5">
                     <h3 className="text-lg font-bold text-gray-800 mb-2">
